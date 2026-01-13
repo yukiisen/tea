@@ -4,13 +4,16 @@
     .fingerprint = 0x78a2cde82266488e, // Changing this has security and trust implications.
     .minimum_zig_version = "0.16.0-dev.1484+d0ba6642b",
     .dependencies = .{
+        .zmath = .{
+            .url = "/home/yuki/Documents/clones/zmath/",
+            .hash = "zmath-0.11.0-dev-wjwivdMsAwD-xaLj76YHUq3t9JDH-X16xuMTmnDzqbu2",
+        },
     },
     .paths = .{
         "build.zig",
         "build.zig.zon",
         "src",
-        // For example...
-        //"LICENSE",
-        //"README.md",
+        "include",
+        "deps",
     },
 }
