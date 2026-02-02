@@ -15,7 +15,7 @@ const ArcheType = struct {
     data: std.ArrayList(u8),
 
     /// TODO: sort component names for faster querying
-    pub fn init(allocator: *std.mem.Allocator, comptime T: type) !Self {
+    pub fn init(allocator: std.mem.Allocator, comptime T: type) !Self {
         const info = @typeInfo(T);
         // validate stuff
         if (info != .@"struct") @compileError("An archetype must be created with a struct type initializer");
@@ -37,9 +37,9 @@ const ArcheType = struct {
         };
     }
 
-    pub fn deinit(self: *Self, allocator: *std.mem.Allocator) void {
+    pub fn deinit(self: *Self, allocator: std.mem.Allocator) void {
         allocator.free(self.components);
-        self.data.deinit(allocator.*);
+        self.data.deinit(allocator);
     }
 };
 
@@ -142,7 +142,7 @@ pub fn Iterator(comptime T: type) type {
 pub const Sekai = struct {
     const Self = @This();
 
-    allocator: *std.mem.Allocator,
+    allocator: std.mem.Allocator,
     running: bool = false,
 
     /// all systems shall be stored here for execution
@@ -158,18 +158,18 @@ pub const Sekai = struct {
     /// Maps @typeName to offset
     resource_map: std.StringHashMap(usize),
 
-    pub fn init (allocator: *std.mem.Allocator) @This() {
+    pub fn init (allocator: std.mem.Allocator) @This() {
         return .{
             .allocator = allocator,
-            .resource_map = std.StringHashMap(usize).init(allocator.*),
+            .resource_map = std.StringHashMap(usize).init(allocator),
         };
     }
 
     pub fn deinit (self: *Self) void {
-        self.systems.deinit(self.allocator.*);
+        self.systems.deinit(self.allocator);
         for (self.archetypes.items) |*archetype| archetype.*.deinit(self.allocator);
-        self.archetypes.deinit(self.allocator.*);
-        self.resources.deinit(self.allocator.*);
+        self.archetypes.deinit(self.allocator);
+        self.resources.deinit(self.allocator);
         self.resource_map.deinit();
     }
 
@@ -276,7 +276,7 @@ pub const Sekai = struct {
                 break archetype;
             } else blk: {
                 const t = try ArcheType.init(self.allocator, @TypeOf(components));
-                try self.archetypes.append(self.allocator.*, t);
+                try self.archetypes.append(self.allocator, t);
                 break :blk &self.archetypes.items[self.archetypes.items.len - 1];
             };
 
@@ -284,7 +284,7 @@ pub const Sekai = struct {
 
         // insert component bytes into the archetype in the right order
         // this needs more work but it should compile and run like this without burning
-        try archetype.data.appendNTimes(self.allocator.*, @as(u8, 9), archetype.stride);
+        try archetype.data.appendNTimes(self.allocator, @as(u8, 9), archetype.stride);
 
         var byte_offset: u32 = 0; // offset inside bytes.
 
@@ -303,7 +303,7 @@ pub const Sekai = struct {
     /// Adds a system (function) to the event loop which will be triggered when `event` occurs
     /// Systems are executed based on the order they were added.
     pub fn addSystem (self: *Self, system: SystemHandler, event: WorldEvent) !void {
-        try self.systems.append(self.allocator.*, .{
+        try self.systems.append(self.allocator, .{
             .handler = system,
             .event = event,
             .line_id = self.active_line
@@ -315,7 +315,7 @@ pub const Sekai = struct {
     pub fn addResource (self: *Self, comptime T: type, res: T) !void {
         try self.resource_map.put(@typeName(T), self.resources.items.len); // save offset
         const bytes = std.mem.asBytes(&res);
-        try self.resources.appendSlice(self.allocator.*, bytes);
+        try self.resources.appendSlice(self.allocator, bytes);
     }
 
     /// *Resources are queried by type so adding multiple resources of the same is pointless*
