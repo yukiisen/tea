@@ -6,19 +6,17 @@ const z = @import("zmath");
 
 pub const GeneralInfo = struct {
     /// silence in ms before playing audio.
-    audioLeadIn: u32 = 0,
+    AudioLeadIn: u32 = 0,
     /// time in ms to start audio preview
-    previewTime: u32 = 0,
+    PreviewTime: u32 = 0,
     /// wtf is this??
-    countdown: CountDown = .NoCountdown,
+    Countdown: CountDown = .NoCountdown,
     /// wtf is this??
-    sampleSet: SampleSet = .Normal,
-    /// wtf is this??
-    stackLatency: f32 = 0.7,
+    SampleSet: SampleSet = .Normal,
     /// whether we should display a warning about flashy colors
-    epilepsyWarning: bool = false,
+    EpilepsyWarning: bool = false,
     /// something for mania.
-    specialStyle: bool  = false,
+    SpecialStyle: bool  = false,
 };
 
 pub const CountDown = enum (u8) {
@@ -38,35 +36,31 @@ pub const SampleSet = enum (u8) {
 
 pub const Metadata = struct {
     /// Romanised song title
-    title: []const u8,
+    Title: []const u8 = &.{},
     /// Romanised song artist 
-    artist: []const u8,
+    Artist: []const u8 = &.{},
     /// Beatmap creator
-    creator: []const u8,
+    Creator: []const u8 = &.{},
     /// Difficulty name
-    version: []const u8,
+    Version: []const u8 = &.{},
     /// Original media the song was produced for
-    source: []const u8,
-    tags: [][]const u8,
+    Source: []const u8 = &.{},
+    Tags: []const u8 = &.{},
     /// Difficulty ID
-    beatmapID: u32, 
+    BeatmapID: u32 = 0, 
     /// Beatmap ID
-    beatmapSetID: u32, 
+    BeatmapSetID: u32 = 0, 
 };
 
 pub const Difficulty = struct {
     /// HP setting (0–10)
-    HPDrainRate: f32, 
+    HPDrainRate: f32 = 0, 
     /// CS setting (0–10)
-    circleSize: f32, 
-    /// OD setting (0–10)
-    overallDifficulty: f32, 
-    /// AR setting (0–10)
-    approachRate: f32, 
+    keyCount: u8 = 4, 
     /// Base slider velocity in hundreds of osu!pixels per beat
-    sliderMultiplier: f32, 
+    sliderMultiplier: f32 = 1.4, 
     /// Amount of slider ticks per beat
-    sliderTickRate: f32, 
+    sliderTickRate: f32 = 1, 
 };
 
 /// TODO: support video events
@@ -76,8 +70,9 @@ pub const Event = union(enum) {
 };
 
 pub const Background = struct {
-    startTime: u32,
-    background: Texture2D,
+    filename: []const u8,
+    /// will be filled only when used.
+    background: ?Texture2D = null,
     offset: z.Vec,
 };
 
@@ -110,31 +105,28 @@ pub const TimingPoint = struct {
 /// this entire shit is used to determine which hitsound file we should play.
 /// if a filename was given, we don't really need any of this shift. (except volume)
 pub const HitSample = struct {
-    const Self = @This();
-
     normalSet: SampleSet,
     additionSet: SampleSet,
     index: u32,
-    volume: f32,
-    hitSound: ?Sound,
-
-    // /// this should return a sound object based on the generated name of the samepleset
-    // pub fn getSound (self: Self) Sound {
-        
-    // }
+    volume: u32,
+    filename: []const u8,
 };
 
 pub const HitObject = struct {
-    /// Position in osu!pixels of the object.
-    x: u32, y: u32, 
+    /// we keep the x value here in order to allow players to change keycound on converted maps
+    x: u32,
     /// Time when the object is to be hit, in milliseconds from the beginning of the beatmap's audio.
     time: u32, 
-    /// Bit flags indicating the type of the object.
-    type: u8, 
+    /// for hold notes
+    endTime: u32,
+    /// the type of the object
+    type: HitObjectType, 
     /// Bit flags indicating the hitsound applied to the object.
-    hitSound: u8, 
+    hitSound: u8,
     hitSample: HitSample,
 };
+
+pub const HitObjectType = enum { Hold, Normal };
 
 pub const Beatmap = struct {
     // this contains the entire .osu file content, don't use pls
@@ -143,62 +135,34 @@ pub const Beatmap = struct {
     general: GeneralInfo,
     metadata: Metadata,
     difficulty: Difficulty,
-    events: []const Event,
-    timingPoints: []const TimingPoint,
-    /// array of combo colors.
-    colors: []const z.Vec, 
-};
+    events: std.ArrayList(Event),
+    timingPoints: std.ArrayList(TimingPoint),
+    colors: std.ArrayList(z.Vec), 
+    hitObjects: std.ArrayList(HitObject),
 
 
-/// I don't know if we have this in std so we implement it :)
-pub const BufferReader = struct {
-    const Self = @This();
 
-    cursor: usize = 0,
-    buffer: []const u8,
+    const empty: Beatmap = .{
+        .events = .empty,
+        .timingPoints = .empty,
+        .colors = .empty,
+        .hitObjects = .empty,
+        .difficulty = .{},
+        .general = undefined,
+        .metadata = .{},
+        .buffer = &.{},
+        .audio = undefined,
+    };
 
-    pub fn init(buffer: []const u8) Self {
-        return .{ .buffer = buffer };
-    }
-
-    pub fn seek(self: *Self, pos: u32) void {
-        self.*.cursor = pos;
-    }
-
-    pub fn readLine(self: *Self) ?[]const u8 {
-        if (self.cursor >= self.buffer.len) return null;
-
-        const start = self.cursor;
-        while (self.cursor < self.buffer.len and self.buffer[self.cursor] != '\n') {
-            self.cursor += 1;
-        }
-
-        const line = self.buffer[start..self.cursor];
-        if (self.cursor < self.buffer.len) self.cursor += 1;
-
-        return std.mem.trimRight(u8, line, "\r");
-    }
-
-    pub fn readUntil(self: *Self, c: u8) []const u8 {
-        if (self.cursor >= self.buffer.len) return null;
-
-        const start = self.cursor;
-        while (self.cursor < self.buffer.len and self.buffer[self.cursor] != c) {
-            self.cursor += 1;
-        }
-
-        const line = self.buffer[start..self.cursor];
-        if (self.cursor < self.buffer.len) self.cursor += 1;
-
-        return std.mem.trimRight(u8, line, "\r");
-    }
-
-    pub fn readNBytes(self: *Self, n: usize) []const u8 {
-        const current = self.cursor;
-        self.*.cursor += n;
-        return self.buffer[current..self.cursor];
+    pub fn deinit(self: *Beatmap, allocator: std.mem.Allocator) void {
+        self.colors.deinit(allocator);
+        self.hitObjects.deinit(allocator);
+        self.events.deinit(allocator);
+        self.timingPoints.deinit(allocator);
+        allocator.free(self.buffer);
     }
 };
+
 
 const Section = enum {
     None,
@@ -206,9 +170,151 @@ const Section = enum {
     Metadata,
     Difficulty,
     Events,
+    Editor,
     TimingPoints,
+    Colours,
     HitObjects,
 };
+
+fn parseSection(line: []const u8) Section {
+    return switch (line[1]) {
+        'G' => .General,
+        'M' => .Metadata,
+        'D' => .Difficulty,
+        'E' => if (line[2] == 'v') .Events else .Editor,
+        'T' => .TimingPoints,
+        'H' => .HitObjects,
+        'C' => .Colours,
+        else => unreachable,
+    };
+}
+
+fn parseEvent(line: []const u8) ?Event {
+    var params = std.mem.splitScalar(u8, line, ',');
+
+    const eventType = params.next() orelse return null;
+    const startTime = params.next() orelse return null;
+
+    switch (eventType[0]) {
+        '0' => {
+            const filename = params.next() orelse return null;
+            const offset: z.Vec = .{ 
+                std.fmt.parseFloat(f32, params.next() orelse "0") catch return null,
+                std.fmt.parseFloat(f32, params.next() orelse "0") catch return null, 
+                0, 0 
+            };
+            return .{ .Background = .{ .filename = filename[1..filename.len - 1], .offset = offset } };
+        },
+        '1', 'V' => return null, 
+        '2', 'B' => return .{ 
+            .Break = .{
+                .startTime = std.fmt.parseInt(u32, startTime, 10) catch return null, 
+                .endTime = std.fmt.parseInt(u32, startTime, 10) catch return null 
+            }
+        }, 
+        else => return null,
+    }
+}
+
+fn parseTimingPoint(line: []const u8) !TimingPoint {
+    var params = std.mem.splitScalar(u8, line, ',');
+    var tp: TimingPoint = undefined;
+    
+    const time = params.next() orelse return error.FuckWeCannotParse;
+    const beatLength = params.next() orelse return error.FuckWeCannotParse;
+    const meter = params.next() orelse return error.FuckWeCannotParse;
+    const sampleSet = params.next() orelse return error.FuckWeCannotParse;
+    const sampleIndex = params.next() orelse return error.FuckWeCannotParse;
+    const volume = params.next() orelse return error.FuckWeCannotParse;
+    const uninherited = params.next() orelse return error.FuckWeCannotParse;
+    const effects = params.next() orelse return error.FuckWeCannotParse;
+
+    tp.time = try std.fmt.parseInt(u32, time, 10);
+    tp.beatLength = try std.fmt.parseFloat(f32, beatLength);
+    tp.meter = try std.fmt.parseInt(u32, meter, 10);
+    tp.sampleSet = @enumFromInt(try std.fmt.parseInt(u32, sampleSet, 10));
+    tp.sampleIndex = try std.fmt.parseInt(u32, sampleIndex, 10);
+    tp.volume = try std.fmt.parseInt(u32, volume, 10);
+    tp.uninherited = uninherited[0] == '1';
+    tp.effects = try std.fmt.parseInt(u8, effects, 10);
+
+    return tp;
+}
+
+fn parseHitObject(line: []const u8) !HitObject {
+    var params = std.mem.splitScalar(u8, line, ',');
+    
+    const x = params.next() orelse return error.FuckWeCouldntParse;
+    _ = params.next() orelse return error.FuckWeCouldntParse; // we drop y.
+    const time = params.next() orelse return error.FuckWeCouldntParse;
+    const objT = params.next() orelse return error.FuckWeCouldntParse;
+    const objType = try std.fmt.parseInt(u8, objT, 10);
+    const hitsound = params.next() orelse return error.FuckWeCouldntParse;
+
+    var obj: HitObject = undefined;
+    
+    obj.x = try std.fmt.parseInt(u32, x, 10);
+    obj.time = try std.fmt.parseInt(u32, time, 10);
+    obj.type = if (objType & 1 << 0 == 0) .Hold else .Normal;
+    obj.hitSound = try std.fmt.parseInt(u8, hitsound, 10);
+
+    var hitSample = std.mem.splitScalar(u8, params.next() orelse return error.FuckWeMessedUp, ':');
+
+    if (obj.type == .Hold) obj.endTime = try std.fmt.parseInt(u32, hitSample.next() orelse return error.Fuck, 10);
+
+    const normalSet = hitSample.next() orelse return error.FuckWeMessedUp;
+    const additionSet = hitSample.next() orelse return error.FuckWeMessedUp;
+    const index = hitSample.next() orelse return error.FuckWeMessedUp;
+    const volume = hitSample.next() orelse return error.FuckWeMessedUp;
+    const filename = hitSample.next() orelse return error.FuckWeMessedUp;
+
+    obj.hitSample.normalSet = @enumFromInt(try std.fmt.parseInt(u32, normalSet, 10));
+    obj.hitSample.additionSet = @enumFromInt(try std.fmt.parseInt(u32, additionSet, 10));
+    obj.hitSample.index = try std.fmt.parseInt(u32, index, 10);
+    obj.hitSample.volume = try std.fmt.parseInt(u32, volume, 10);
+    obj.hitSample.filename = filename;
+
+    return obj;
+}
+
+
+fn parseColor(line: []const u8) z.Vec {
+    const idx = std.mem.indexOfScalar(u8, line, ':') orelse 0;
+
+    const val = std.mem.trim(u8, line[idx + 1..], " ");
+    var comps = std.mem.splitScalar(u8, val, ',');
+
+    var vec: z.Vec = undefined;
+
+    vec[0] = std.fmt.parseFloat(f32, comps.next().?) catch 0;
+    vec[1] = std.fmt.parseFloat(f32, comps.next().?) catch 0;
+    vec[2] = std.fmt.parseFloat(f32, comps.next().?) catch 0;
+    vec[3] = std.fmt.parseFloat(f32, comps.next().?) catch 0;
+
+    return vec;
+}
+
+fn parseSectionVars(comptime S: type, s: *S, line: []const u8) void {
+    const idx = std.mem.indexOfScalar(u8, line, ':') orelse return;
+
+    const key = std.mem.trim(u8, line[0..idx], " ");
+    const val = std.mem.trim(u8, line[idx + 1..], " ");
+
+    const info = @typeInfo(S).@"struct"; // asserted because why not.
+
+    inline for (info.fields) |f| {
+        if (std.mem.eql(u8, f.name, key)) {
+            switch (@typeInfo(f.type)) {
+                inline .int => @field(s, f.name) = std.fmt.parseInt(f.type, val, 10) catch 0,
+                inline .float => @field(s, f.name) = std.fmt.parseFloat(f.type, val) catch 0,
+                inline .bool => @field(s, f.name) = (std.fmt.parseUnsigned(u1, val, 2) catch 0) == 1,
+                inline .@"enum" => @field(s, f.name) = @enumFromInt(std.fmt.parseUnsigned(u8, val, 10) catch 0),
+                inline .@"pointer" => @field(s, f.name) = val,
+                else => unreachable,
+            }
+        }
+    }
+}
 
 pub fn loadBeatMapFromFile(io: std.Io, allocator: std.mem.Allocator, filename: []const u8) !Beatmap {
     const file = try std.Io.Dir.cwd().openFile(io, filename, .{ .mode = .read_only });
@@ -219,21 +325,37 @@ pub fn loadBeatMapFromFile(io: std.Io, allocator: std.mem.Allocator, filename: [
 
     // I wonder if this is the right way to read a file.
     const buffer = try allocator.alloc(u8, size);
-    defer allocator.free(buffer); // free mem on errors
 
     _ = try file.readPositionalAll(io, buffer, 0);
 
-    var reader = BufferReader.init(buffer);
-    var bmp: Beatmap = undefined;
+    var lines = std.mem.splitScalar(u8, buffer[3..], '\n');
+    var bmp: Beatmap = .empty;
+    errdefer bmp.deinit(allocator);
 
     bmp.buffer = buffer;
+    if (!std.mem.eql(u8, lines.next() orelse &.{}, "osu file format v128")) return error.FuckBMPFileBroken;
 
-    if (!std.mem.eql(u8, reader.readLine(), "osu file format v128")) return error.FuckSomethingBrokeInBMPLoading;
+    var section: Section = .None;
 
-    // we collect metadata first
-    while (!std.mem.eql(u8, reader.readLine(), "[General]")) {} // skip lines until general section
-    
-    var line: []const u8 = undefined;
+    while (lines.next()) |line| {
+        if (line.len == 0) continue;
+
+        if (line[0] == '[') {
+            section = parseSection(line);
+            continue;
+        }
+
+        switch (section) {
+            .Events => if (parseEvent(line)) |event| { try bmp.events.append(allocator, event); },
+            .TimingPoints => try bmp.timingPoints.append(allocator, try parseTimingPoint(line)),
+            .HitObjects => try bmp.hitObjects.append(allocator, try parseHitObject(line)),
+            .Colours => try bmp.colors.append(allocator, parseColor(line)),
+            .Difficulty => parseSectionVars(Difficulty, &bmp.difficulty, line),
+            .Metadata => parseSectionVars(Metadata, &bmp.metadata, line),
+            .General => parseSectionVars(GeneralInfo, &bmp.general, line),
+            else => {}
+        }
+    }
 
     return bmp;
 }

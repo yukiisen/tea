@@ -9,8 +9,9 @@ pub fn main() !void {
     defer std.debug.print("No leaks: {any}\n", .{gpa.deinit() == .ok});
     const allocator = gpa.allocator();
 
-    const bmp = try osu.loadBeatMapFromFile(std.Io.Threaded.global_single_threaded.io(), allocator, "/home/yuki/tmp/mania/t+pazolite - QZKago Requiem (keksikosu) [APOL'S ANOTHER].osu");
+    var bmp = try osu.loadBeatMapFromFile(std.Io.Threaded.global_single_threaded.io(), allocator, "/home/yuki/tmp/mania/t+pazolite - QZKago Requiem (keksikosu) [APOL'S ANOTHER].osu");
+    // var bmp = try osu.loadBeatMapFromFile(std.Io.Threaded.global_single_threaded.io(), allocator, "/home/yuki/tmp/docci/Nakiri Ayame - Docchi Docchi no Uta (RiP46) [Hard].osu");
 
-
-    allocator.free(bmp.buffer);
+    defer bmp.deinit(allocator);
+    std.debug.print("{s}\n", .{ bmp.events.items[0].Background.filename });
 }
