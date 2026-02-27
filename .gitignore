@@ -1,4 +1,6 @@
 zig-out/
-*.glsl
 .zig-cache/
-assets/
+assets/*
+shaders/*
+src/formats
+src/*.zig

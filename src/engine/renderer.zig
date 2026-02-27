@@ -13,6 +13,7 @@ const Mesh = @import("components.zig").Mesh;
 // resources
 /// A window object is an extension over `FrameBuffer`.
 /// It's a wrapper over GLFW's Window object
+/// This struct is safe to copy around.
 pub const Window = struct {
     const Self = @This();
 
@@ -117,6 +118,10 @@ pub const Window = struct {
         w.glfwPollEvents();
     }
 
+    pub fn useFrameBuffer(_: Self) void {
+        c.glBindFramebuffer(c.GL_FRAMEBUFFER, 0);
+    }
+
     /// returns the close flag of the window
     pub fn shouldClose(self: Self) bool {
         return w.glfwWindowShouldClose(self.window) != 0;
@@ -131,6 +136,7 @@ pub const WindowMode = enum {
 
 /// A renderer is responsible of managing framebuffers and rendering commands
 /// All GPU communication except data loading should be abstracted here for easier encapsulation
+/// This struct is safe to copy around.
 pub const Renderer = struct {
     const Self = @This();
 
@@ -150,6 +156,11 @@ pub const Renderer = struct {
         c.glEnable(c.GL_FRAMEBUFFER_SRGB);
 
         return .{ .framebuffers = .empty, .allocator = allocator };
+    }
+
+    pub fn deinit(self: *Self) void {
+        for (self.framebuffers.items) |fb| fb.deinit();
+        self.framebuffers.deinit(self.allocator);
     }
 
     pub fn disableDepthTest (_: Self) void {
@@ -196,11 +207,11 @@ pub const Renderer = struct {
 
     /// creates a framebuffer with the same size as `window`.
     /// The resulting framebuffer will then be saved into the renderer's framebuffers array.
-    pub fn createFramebuffer(self: *Self, window: *Window) !FrameBuffer {
-        const depth = RenderBuffer.init(window.width, window.height);
+    pub fn createFramebuffer(self: *Self, size: [2]u32) !FrameBuffer {
+        const depth = RenderBuffer.init(size[0], size[1]);
         const color = Texture2D.init(null, .{ 
-            .width = window.width, 
-            .height = window.height, 
+            .width = size[0], 
+            .height = size[1], 
             .nChannels = 3, 
             .pixelated = false 
         });

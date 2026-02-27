@@ -142,6 +142,8 @@ pub fn Iterator(comptime T: type) type {
 pub const Sekai = struct {
     const Self = @This();
 
+    /// the allocator used by this instance.
+    /// can be used by internal systems since I'm lazy to implement generic args.
     allocator: std.mem.Allocator,
     running: bool = false,
 
@@ -152,7 +154,7 @@ pub const Sekai = struct {
     archetypes: std.ArrayList(ArcheType) = .empty,
 
     /// all bytes from the created resources should live here.
-    resources: std.ArrayList(u8) = .empty,
+    resources: std.ArrayList(@Tuple(&.{bool, []u8})) = .empty,
 
     /// offsets in the `resources` array to which the value should be read from
     /// Maps @typeName to offset
@@ -169,14 +171,38 @@ pub const Sekai = struct {
         self.systems.deinit(self.allocator);
         for (self.archetypes.items) |*archetype| archetype.*.deinit(self.allocator);
         self.archetypes.deinit(self.allocator);
+        for (self.resources.items) |res| {
+            const free, const ptr = res;
+            if (!free) self.allocator.free(ptr);
+        }
         self.resources.deinit(self.allocator);
         self.resource_map.deinit();
+    }
+
+    /// changes the active line to `line` (to use different systems).
+    /// this function will execute the LineStart and LineEnd hooks only when the app is running.
+    pub fn switchLine (self: *Self, line: u32) void {
+        if (self.running) for (self.systems.items) |system| {
+            if (
+                system.event == .LineEnd and
+                (system.line_id == self.active_line or system.line_id == 0)
+            ) system.handler(self);
+        };
+
+        self.active_line = line;
+
+        if (self.running) for (self.systems.items) |system| {
+            if (
+                system.event == .LineStart and
+                (system.line_id == self.active_line or system.line_id == 0)
+            ) system.handler(self);
+        };
     }
 
     /// Start the event loop.
     /// to break the event loop you should set the running flag to false.
     /// TODO: This requires some more optimization since it's slow rn.
-    pub fn run(self: *Self) !void {
+    pub fn run(self: *Self) void {
         self.running = true;
         for (self.systems.items) |system| {
             if (
@@ -207,6 +233,12 @@ pub const Sekai = struct {
                 (system.line_id == self.active_line or system.line_id == 0)
             ) system.handler(self);
         }
+    }
+
+    /// stops the execution of the update loop.
+    /// the current frame will finish before the app quits.
+    pub fn stop(self: *Self) void {
+        self.running = false;
     }
 
     /// Get an Iterator over entities with the components specified in tuple T
@@ -310,25 +342,30 @@ pub const Sekai = struct {
         });
     }
 
-    /// *Resources are queried by type so adding multiple resources of the same is pointless*
-    /// Use arrays or containers instead to store multiple data inside a resource, it's likely better
+    /// NOTE: Resources are queried by type so adding multiple resources of the same type is pointless
+    /// consider using arrays or containers instead to store multiple data inside a resource, it's likely better
     pub fn addResource (self: *Self, comptime T: type, res: T) !void {
         try self.resource_map.put(@typeName(T), self.resources.items.len); // save offset
         const bytes = std.mem.asBytes(&res);
-        try self.resources.appendSlice(self.allocator, bytes);
+        // we allocate a static memory address for each resource because resources may depend on each other.
+        const buf = try self.allocator.alloc(u8, @sizeOf(T)); 
+        @memcpy(buf, bytes);
+        try self.resources.append(self.allocator, .{ false, buf });
     }
 
     /// *Resources are queried by type so adding multiple resources of the same is pointless*
     /// Returns an optional value of the resource of type T.
     pub fn getResource (self: *Self, T: type) ?*T {
-        const offset = self.resource_map.get(@typeName(T)) orelse return null;
-        return @ptrCast(@alignCast(self.resources.items.ptr + offset)); // um.. this worked somehow..
+        const idx = self.resource_map.get(@typeName(T)) orelse return null;
+        return @ptrCast(@alignCast(self.resources.items[idx].@"1")); // um.. this worked somehow..
     }
     
-    /// Unmaps a resource pointer from the index
-    /// This function does NOT delete resource data from the pool since deleting anything would require lots of reordering as well as changing other offsets
-    /// Resources aren't made to be removed too often so this shouldn't be used unless you have a good reason to.
+    /// Unmaps a resource pointer from the index and frees backing memory
     pub fn removeResource (self: *Self, T: type) void {
+        const idx = self.resource_map.get(@typeName(T)) orelse return;
         self.resource_map.remove(@typeName(T));
+
+        self.allocator.free(self.resources.items[idx].@"1");
+        self.resources.items[idx].@"0" = true;
     }
 };

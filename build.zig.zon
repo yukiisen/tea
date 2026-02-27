@@ -1,7 +1,7 @@
 .{
-    .name = .sekai,
+    .name = .minia,
     .version = "0.0.0",
-    .fingerprint = 0x78a2cde82266488e, // Changing this has security and trust implications.
+    .fingerprint = 0x2d6d9b62ca6017b5, // Changing this has security and trust implications.
     .minimum_zig_version = "0.16.0-dev.1484+d0ba6642b",
     .dependencies = .{
         .zmath = .{

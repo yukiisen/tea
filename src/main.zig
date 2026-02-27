@@ -1,17 +1,32 @@
 const std = @import("std");
-const sekai = @import("sekai");
-const osu = @import("osu.zig");
+const engine = @import("engine/root.zig");
 
-const z = @import("zmath");
+const createResources = @import("resources.zig").createResources;
+const destroyResources = @import("resources.zig").destroyResources;
 
-pub fn main() !void { 
-    var gpa = std.heap.GeneralPurposeAllocator(.{}) {};
-    defer std.debug.print("No leaks: {any}\n", .{gpa.deinit() == .ok});
-    const allocator = gpa.allocator();
+const initRenderPipeline = @import("render.zig").initRenderPipeline;
 
-    var bmp = try osu.loadBeatMapFromFile(std.Io.Threaded.global_single_threaded.io(), allocator, "/home/yuki/tmp/mania/t+pazolite - QZKago Requiem (keksikosu) [APOL'S ANOTHER].osu");
-    // var bmp = try osu.loadBeatMapFromFile(std.Io.Threaded.global_single_threaded.io(), allocator, "/home/yuki/tmp/docci/Nakiri Ayame - Docchi Docchi no Uta (RiP46) [Hard].osu");
+const Sekai = engine.Sekai;
+const KeyBoard = engine.Keyboard;
 
-    defer bmp.deinit(allocator);
-    std.debug.print("{s}\n", .{ bmp.events.items[0].Background.filename });
+fn stopOnQ (app: *Sekai) void  {
+    const kb = app.getResource(KeyBoard).?;
+    if (kb.isPressed(.Q)) app.running = false;
+
+    const mouse = app.getResource(engine.Mouse).?;
+    if (mouse.pos_changed) std.debug.print("cursor: {d} {d}\n", .{ mouse.xpos, mouse.ypos });
+}
+
+pub fn main(init: std.process.Init) !void { 
+    const allocator = init.gpa;
+
+    var app = Sekai.init(allocator);
+    defer app.deinit();
+
+    try app.addSystem(createResources, .Setup);
+    try app.addSystem(destroyResources, .Destroy);
+    try app.addSystem(stopOnQ, .Update);
+    try initRenderPipeline(&app);
+
+    app.run();
 }

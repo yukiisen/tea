@@ -4,7 +4,7 @@ const c = @import("deps/glad.zig");
 const stbi = @import("deps/stb_image.zig");
 
 /// Low-Level Abstraction over a Texture
-/// This may replace the Sprite if I find it useless
+/// It is safe to copy this struct around.
 pub const Texture2D = struct {
     const Self = @This();
     id: u32,
@@ -130,7 +130,8 @@ pub const AssetManager = struct {
     }
 
     /// load a Texture from path into a texture object
-    pub fn loadTexture(self: *Self, path: []const u8, pixelated: bool, label: []const u8) !void {
+    /// Textures created using this method are automatically freed using the `deinit` method of this instance.
+    pub fn loadTexture(self: *Self, path: []const u8, pixelated: bool, label: []const u8) !Texture2D {
         // image loading stuff.
         const file = try std.Io.Dir.cwd().openFile(self.io, path, .{ .mode = .read_only });
         defer file.close(self.io);
@@ -157,10 +158,14 @@ pub const AssetManager = struct {
             .nChannels = nChannels
         };
 
-        try self.textures.put(label, Texture2D.init(data, image));
+        const tex = Texture2D.init(data, image);
+        try self.textures.put(label, tex);
+
+        return tex;
     }
 
     /// load a cube map from `files` as its faces.
+    /// Textures created using this method are automatically freed using the `deinit` method of this instance.
     pub fn loadCubeMultipleFiles(self: *Self, label: []const u8, files: [6][]const u8) !void {
         var images: [6]Image = undefined;
         defer for (images) |img| stbi.stbi_image_free(img.pixels);
@@ -188,6 +193,7 @@ pub const AssetManager = struct {
     }
 
     /// loads a cube map from a single image as all faces
+    /// Textures created using this method are automatically freed using the `deinit` method of this instance.
     pub fn loadCubeRepeat(self: *Self, label: []const u8, path: []const u8) !void {
         var image: Image = undefined;
 

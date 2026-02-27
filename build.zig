@@ -4,21 +4,15 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const mod = b.addModule("sekai", .{
-        .root_source_file = b.path("src/root.zig"),
-        .target = target,
-    });
-
     const zmath = b.dependency("zmath", .{});
 
     const exe = b.addExecutable(.{
-        .name = "sekai",
+        .name = "minia",
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/main.zig"),
             .target = target,
             .optimize = optimize,
             .imports = &.{
-                .{ .name = "sekai", .module = mod },
                 .{ .name = "zmath", .module = zmath.module("root") },
             },
         }),
