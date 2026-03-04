@@ -1,6 +1,2 @@
 zig-out/
 .zig-cache/
-assets/*
-shaders/*
-src/formats
-src/*.zig
