@@ -9,8 +9,7 @@ Thin wrappers around OpenGL, GLFW and miniaudio. Each module owns a single conce
 | Module | Responsibility |
 |---|---|
 | `renderer.zig` | Window creation, OpenGL init, draw commands, framebuffer management |
-| `shader.zig` | Shader compilation, uniform reflection and upload |
-| `components.zig` | Mesh (VAO/VBO/EBO), Vertex, Transform, MeshConfig presets |
+| `shader.zig` | Shader compilation, uniform reflection and upload | | `components.zig` | Mesh (VAO/VBO/EBO), Vertex, Transform, MeshConfig presets |
 | `assets.zig` | Texture2D / CubeTexture loading via zstbi, AssetManager |
 | `framebuffer.zig` | Framebuffer and RenderBuffer objects |
 | `uniformbuffer.zig` | UBO with std140 layout computed at comptime |
@@ -44,3 +43,7 @@ GameLoop.init()
 ```
 
 Input is handled via `InputMapper` — register named actions with bindings, then query `.justPressed` / `.pressed` / `.justReleased` in your update logic.
+
+---
+
+This project is still in early stages and is not ready to use yet.

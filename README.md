@@ -26,11 +26,15 @@ shaders/        GLSL shaders
 
 ## TODO
 
-- [ ] sound groups (Audio)
-- [ ] custom cursors (Mouse)
-- [ ] cubemap loading from a single file (AssetManager)
-- [ ] precompiled shaders and hot-reloading (ShaderManager)
-- [ ] render buffer type selection (FrameBuffer)
-- [ ] proper error handling for window creation (Window)
-- [ ] safe user-pointer registration (Window.prepare)
-- [ ] Text2D rendering
+- [ ] Implement Sound groups.
+- [ ] Text rendering.
+- [ ] Add more tests.
+- [ ] Default render pipeline.
+- [ ] Support custom cursors.
+- [ ] Cubemap loading from a single file.
+- [ ] Precompiled shaders and hot-reloading.
+- [ ] Render buffer type selection.
+- [ ] Proper error handling for window creation.
+- [ ] Safe user-pointer registration (Window.prepare)
+
+and more stuff I forgot.
