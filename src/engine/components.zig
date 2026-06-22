@@ -34,9 +34,9 @@ pub const Mesh = struct {
         gl.bufferData(gl.ARRAY_BUFFER, @intCast(config.vertices.len * @sizeOf(Vertex)), config.vertices.ptr, gl.STATIC_DRAW);
         if (config.indices) |indices| gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, @intCast(indices.len * @sizeOf(u32)), indices.ptr, gl.STATIC_DRAW);
 
-        const info = @typeInfo(Vertex).@"struct";
+        const fields: []const std.builtin.Type.StructField = std.meta.fields(Vertex);
 
-        inline for (info.fields, 0..) |field, i| {
+        inline for (fields, 0..) |field, i| {
             gl.vertexAttribPointer(
                 i,
                 @typeInfo(field.type).array.len,
@@ -140,6 +140,7 @@ pub const MeshConfig = struct {
         const vert_count = segments + 1;
         const idx_count = segments * 3;
 
+        // this is created per-call (similar segments inputs are the same call).
         const static = struct {
             var vertices: [vert_count]Vertex = undefined;
             var indices: [idx_count]u32 = undefined;

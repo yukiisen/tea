@@ -26,15 +26,21 @@ shaders/        GLSL shaders
 
 ## TODO
 
-- [ ] Implement Sound groups.
+- [ ] External model loading.
+- [ ] Controller support.
+- [*] Vsync support.
 - [ ] Text rendering.
-- [ ] Add more tests.
 - [ ] Default render pipeline.
-- [ ] Support custom cursors.
+- [ ] Implement Sound groups.
+- [ ] Improve the SceneGraph implementation.
+- [ ] Some 2D features (Animations, Collisions, Particles)
 - [ ] Cubemap loading from a single file.
 - [ ] Precompiled shaders and hot-reloading.
+- [ ] Add more tests.
+- [ ] Support custom cursors.
 - [ ] Render buffer type selection.
 - [ ] Proper error handling for window creation.
 - [ ] Safe user-pointer registration (Window.prepare)
+- [ ] Improve code quality.
 
 and more stuff I forgot.

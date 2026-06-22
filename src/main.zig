@@ -110,6 +110,10 @@ pub fn main(init: std.process.Init) !void {
 
     var mesh = try engine.Mesh.init(.circle(32));
     defer mesh.deinit();
+
+    var mesh2 = try engine.Mesh.init(.circle(5));
+    defer mesh2.deinit();
+
     //
     var keyboard = engine.Keyboard.init(&window);
     var clock = engine.Clock.init();
@@ -146,7 +150,7 @@ pub fn main(init: std.process.Init) !void {
         try shader.setUniform("u_model", model2);
         try shader.setUniform("u_color", z.Vec{ 1.0, 1.0, 1.0, 1.0 } - z.Vec{ 0.2, 0.7, 1.0, 1.0 });
 
-        renderer.drawMesh(&mesh, &shader, .Triangles);
+        renderer.drawMesh(&mesh2, &shader, .Triangles);
 
         window.swapBuffers();
     }

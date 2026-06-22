@@ -40,3 +40,8 @@ pub const MeshConfig = @import("components.zig").MeshConfig;
 pub const Vertex = @import("components.zig").Vertex;
 
 pub const Transform = @import("components.zig").Transform;
+
+// pub const FontAtlas = @import("font.zig").FontAtlas;
+// pub const MsdfTexture = @import("font.zig").MsdfTexture;
+// pub const Glyph = @import("font.zig").Glyph;
+// pub const FontMetrics = @import("font.zig").FontMetrics;

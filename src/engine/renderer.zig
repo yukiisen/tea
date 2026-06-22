@@ -18,6 +18,7 @@ pub const Window = struct {
 
     window: *w.GLFWwindow,
     mode: WindowMode = .Windowed,
+    vsync: bool = false,
     width: i32,
     height: i32,
 
@@ -124,6 +125,11 @@ pub const Window = struct {
         w.glfwPollEvents();
     }
 
+    pub fn setVSync(self: *Self, value: bool) void {
+        self.vsync = value;
+        w.glfwSwapInterval(@intFromBool(value));
+    }
+
     pub fn bindFrameBuffer(_: Self) void {
         gl.bindFramebuffer(gl.FRAMEBUFFER, 0);
     }
@@ -182,7 +188,7 @@ pub const Renderer = struct {
         gl.useProgram(shader.id);
     }
 
-    pub fn clearFrame(_: Self, color: [4]f32) void {
+    pub fn clearFrame(_: Self, color: @Vector(4, f32)) void {
         gl.clearColor(color[0], color[1], color[2], color[3]);
         const mask = gl.COLOR_BUFFER_BIT | gl.STENCIL_BUFFER_BIT | gl.DEPTH_BUFFER_BIT;
         gl.clear(@intCast(mask));
