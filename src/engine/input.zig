@@ -1,10 +1,9 @@
 const std = @import("std");
 
-const w = @import("deps/glfw3.zig");
+const w = @import("deps/glfw3.zig").w;
 
 const Window = @import("renderer.zig").Window;
 
-// resources
 /// Abstraction over GLFW's Mouse events.
 /// TODO: implement custom cursors
 pub const Mouse = struct {
@@ -34,7 +33,7 @@ pub const Mouse = struct {
     pub fn setCursorMode(self: *Self, mode: CursorMode) void {
         if (self.cursor_mode == mode) return; // avoid useless calls
         w.glfwSetInputMode(self.window, w.GLFW_CURSOR, @intFromEnum(mode));
-        self.*.cursor_mode = mode;
+        self.cursor_mode = mode;
     }
 
     /// updates mouse data.
@@ -43,9 +42,9 @@ pub const Mouse = struct {
         var v = [_]f64{ 0, 0 }; // tmp data.
         w.glfwGetCursorPos(self.window, &v[0], &v[1] );
 
-        self.*.pos_changed = v[0] != self.xpos or v[1] != self.ypos;
-        self.*.xpos = v[0];
-        self.*.ypos = v[1];
+        self.pos_changed = v[0] != self.xpos or v[1] != self.ypos;
+        self.xpos = v[0];
+        self.ypos = v[1];
     }
 
     pub fn isPressed(self: Self, button: MouseButton) bool {
@@ -53,28 +52,20 @@ pub const Mouse = struct {
     }
 
     /// when this is enabled, the state of a button will remain the same (not update even if it changes) until you read it via `isPressed`.
-    pub fn enableStickyKeys(self: Self) void {
-        w.glfwSetInputMode(self.window, w.GLFW_STICKY_MOUSE_BUTTONS, w.GLFW_TRUE);
-    }
-
-    pub fn disableStickyKeys(self: Self) void {
-        w.glfwSetInputMode(self.window, w.GLFW_STICKY_MOUSE_BUTTONS, w.GLFW_FALSE);
+    pub fn setStickyKeys(self: Self, enabled: bool) void {
+        w.glfwSetInputMode(self.window, w.GLFW_STICKY_MOUSE_BUTTONS, @intFromBool(enabled));
     }
 };
 
 pub const MouseButton = enum (i32) {
-    // Those are removed since we have l/r/m
-    // Button_1 = @as(c_int, 0),
-    // Button_2 = @as(c_int, 1),
-    // Button_3 = @as(c_int, 2),
     ButtonLeft   = @as(i32, 0),
     ButtonRight  = @as(i32, 1),
     ButtonMiddle = @as(i32, 2),
-    Button_4     = @as(i32, 3),
-    Button_5     = @as(i32, 4),
-    Button_6     = @as(i32, 5),
-    Button_7     = @as(i32, 6),
-    Button_8     = @as(i32, 7),
+    Button4     = @as(i32, 3),
+    Button5     = @as(i32, 4),
+    Button6     = @as(i32, 5),
+    Button7     = @as(i32, 6),
+    Button8     = @as(i32, 7),
 };
 
 pub const CursorMode = enum(i32) {
@@ -114,27 +105,27 @@ pub const Keyboard = struct {
 };
 
 /// Generated from GLFW using the sexiest vim motions I know.
-/// is it pervert to be triggered by those?
+/// is it pervert to get turned on by vim?
 pub const KeyboardKey = enum(i32) {
-    UNKNOWN = -@as(i32, 1),
-    SPACE = @as(i32, 32),
-    APOSTROPHE = @as(i32, 39),
-    COMMA = @as(i32, 44),
-    MINUS = @as(i32, 45),
-    PERIOD = @as(i32, 46),
-    SLASH = @as(i32, 47),
-    NUM_0 = @as(i32, 48),
-    NUM_1 = @as(i32, 49),
-    NUM_2 = @as(i32, 50),
-    NUM_3 = @as(i32, 51),
-    NUM_4 = @as(i32, 52),
-    NUM_5 = @as(i32, 53),
-    NUM_6 = @as(i32, 54),
-    NUM_7 = @as(i32, 55),
-    NUM_8 = @as(i32, 56),
-    NUM_9 = @as(i32, 57),
-    SEMICOLON = @as(i32, 59),
-    EQUAL = @as(i32, 61),
+    Unknown = -@as(i32, 1),
+    Space = @as(i32, 32),
+    Apostrophe = @as(i32, 39),
+    Comma = @as(i32, 44),
+    Minus = @as(i32, 45),
+    Period = @as(i32, 46),
+    Slash = @as(i32, 47),
+    Num0 = @as(i32, 48),
+    Num1 = @as(i32, 49),
+    Num2 = @as(i32, 50),
+    Num3 = @as(i32, 51),
+    Num4 = @as(i32, 52),
+    Num5 = @as(i32, 53),
+    Num6 = @as(i32, 54),
+    Num7 = @as(i32, 55),
+    Num8 = @as(i32, 56),
+    Num9 = @as(i32, 57),
+    Semicolon = @as(i32, 59),
+    Equal = @as(i32, 61),
     A = @as(i32, 65),
     B = @as(i32, 66),
     C = @as(i32, 67),
@@ -161,31 +152,31 @@ pub const KeyboardKey = enum(i32) {
     X = @as(i32, 88),
     Y = @as(i32, 89),
     Z = @as(i32, 90),
-    LEFT_BRACKET = @as(i32, 91),
-    BACKSLASH = @as(i32, 92),
-    RIGHT_BRACKET = @as(i32, 93),
-    GRAVE_ACCENT = @as(i32, 96),
-    WORLD_1 = @as(i32, 161),
-    WORLD_2 = @as(i32, 162),
-    ESCAPE = @as(i32, 256),
-    ENTER = @as(i32, 257),
-    TAB = @as(i32, 258),
-    BACKSPACE = @as(i32, 259),
-    INSERT = @as(i32, 260),
-    DELETE = @as(i32, 261),
-    RIGHT = @as(i32, 262),
-    LEFT = @as(i32, 263),
-    DOWN = @as(i32, 264),
-    UP = @as(i32, 265),
-    PAGE_UP = @as(i32, 266),
-    PAGE_DOWN = @as(i32, 267),
-    HOME = @as(i32, 268),
-    END = @as(i32, 269),
-    CAPS_LOCK = @as(i32, 280),
-    SCROLL_LOCK = @as(i32, 281),
-    NUM_LOCK = @as(i32, 282),
-    PRINT_SCREEN = @as(i32, 283),
-    PAUSE = @as(i32, 284),
+    LeftBracket = @as(i32, 91),
+    Backslash = @as(i32, 92),
+    RightBracket = @as(i32, 93),
+    GraveAccent = @as(i32, 96),
+    World1 = @as(i32, 161),
+    World2 = @as(i32, 162),
+    Escape = @as(i32, 256),
+    Enter = @as(i32, 257),
+    Tab = @as(i32, 258),
+    Backspace = @as(i32, 259),
+    Insert = @as(i32, 260),
+    Delete = @as(i32, 261),
+    Right = @as(i32, 262),
+    Left = @as(i32, 263),
+    Down = @as(i32, 264),
+    Up = @as(i32, 265),
+    PageUp = @as(i32, 266),
+    PageDown = @as(i32, 267),
+    Home = @as(i32, 268),
+    End = @as(i32, 269),
+    CapsLock = @as(i32, 280),
+    ScrollLock = @as(i32, 281),
+    NumLock = @as(i32, 282),
+    PrintScreen = @as(i32, 283),
+    Pause = @as(i32, 284),
     F1 = @as(i32, 290),
     F2 = @as(i32, 291),
     F3 = @as(i32, 292),
@@ -211,57 +202,41 @@ pub const KeyboardKey = enum(i32) {
     F23 = @as(i32, 312),
     F24 = @as(i32, 313),
     F25 = @as(i32, 314),
-    KP_0 = @as(i32, 320),
-    KP_1 = @as(i32, 321),
-    KP_2 = @as(i32, 322),
-    KP_3 = @as(i32, 323),
-    KP_4 = @as(i32, 324),
-    KP_5 = @as(i32, 325),
-    KP_6 = @as(i32, 326),
-    KP_7 = @as(i32, 327),
-    KP_8 = @as(i32, 328),
-    KP_9 = @as(i32, 329),
-    KP_DECIMAL = @as(i32, 330),
-    KP_DIVIDE = @as(i32, 331),
-    KP_MULTIPLY = @as(i32, 332),
-    KP_SUBTRACT = @as(i32, 333),
-    KP_ADD = @as(i32, 334),
-    KP_ENTER = @as(i32, 335),
-    KP_EQUAL = @as(i32, 336),
-    LEFT_SHIFT = @as(i32, 340),
-    LEFT_CONTROL = @as(i32, 341),
-    LEFT_ALT = @as(i32, 342),
-    LEFT_SUPER = @as(i32, 343),
-    RIGHT_SHIFT = @as(i32, 344),
-    RIGHT_CONTROL = @as(i32, 345),
-    RIGHT_ALT = @as(i32, 346),
-    RIGHT_SUPER = @as(i32, 347),
-    MENU = @as(i32, 348),
+    Kp0 = @as(i32, 320),
+    Kp1 = @as(i32, 321),
+    Kp2 = @as(i32, 322),
+    Kp3 = @as(i32, 323),
+    Kp4 = @as(i32, 324),
+    Kp5 = @as(i32, 325),
+    Kp6 = @as(i32, 326),
+    Kp7 = @as(i32, 327),
+    Kp8 = @as(i32, 328),
+    Kp9 = @as(i32, 329),
+    KpDecimal = @as(i32, 330),
+    KpDivide = @as(i32, 331),
+    KpMultiply = @as(i32, 332),
+    KpSubtract = @as(i32, 333),
+    KpAdd = @as(i32, 334),
+    KpEnter = @as(i32, 335),
+    KpEqual = @as(i32, 336),
+    LeftShift = @as(i32, 340),
+    LeftControl = @as(i32, 341),
+    LeftAlt = @as(i32, 342),
+    LeftSuper = @as(i32, 343),
+    RightShift = @as(i32, 344),
+    RightControl = @as(i32, 345),
+    RightAlt = @as(i32, 346),
+    RightSuper = @as(i32, 347),
+    Menu = @as(i32, 348),
 };
 
 pub const Clipboard = struct {
     const Self = @This();
-    /// Paths from the last file drop 
-    /// check `paths_len`.
-    var paths: ?[*]const [*:0]const u8 = null;
-    var paths_len: u32 = 0;
 
     window: *w.GLFWwindow,
 
-    /// ma3lik
-    fn dropHandler (_: ?*w.GLFWwindow, n: c_int, path_names: [*c][*c]const u8) void {
-        paths = path_names;
-        paths_len = n;
-    }
-
     pub fn init(window: *Window) Self {
         return .{ .window = window.window };
-    }
-
-    /// Registers callbacks for file drops
-    /// Don't use if you don't plan to handle those.
-    pub fn allowFileDrops (self: Self) void {
-        w.glfwSetDropCallback(self.window, dropHandler);
     }
 
     pub fn getString(self: Self) ?[*:0]const u8 {
@@ -292,19 +267,13 @@ pub const Clock = struct {
     /// updates the clock with a new delta time data.
     /// use at the beginning of each frame.
     pub fn tick(self: *Self) void {
-        self.*.delta_time = self.getTime() - self.last_frame;
-        self.*.last_frame = self.getTime();
+        self.delta_time = w.glfwGetTime() - self.last_frame;
+        self.last_frame = w.glfwGetTime();
     }
 
-    /// resets clock to zero.
-    /// this may break `dt` variables so be careful.
-    pub inline fn rewindClock(_: Self) void {
-        w.glfwSetTime(0.0);
-    }
-
-    /// returns the time since the application's first window was initialized.
-    /// this is affected with calls to `rewindClock`.
-    pub inline fn getTime(_: Self) f64 {
+    /// Returns the elapsed time since the game launched.
+    pub fn elapsed(self: *Self) f64 {
+        _ = self;
         return w.glfwGetTime();
     }
 };

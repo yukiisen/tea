@@ -1,7 +1,6 @@
 const std = @import("std");
 
-const c = @import("deps/glad.zig");
-const w = @import("deps/glfw3.zig");
+const gl = @import("zopengl").bindings;
 
 const Texture2D = @import("assets.zig").Texture2D;
 
@@ -17,27 +16,28 @@ pub const FrameBuffer = struct {
     pub fn init(depth: RenderBuffer, color: Texture2D) !Self {
         var id: u32 = undefined;
 
-        c.glGenFramebuffers(1, &id);
-        c.glBindFramebuffer(c.GL_FRAMEBUFFER, id);
-        defer c.glBindFramebuffer(c.GL_FRAMEBUFFER, 0);
+        gl.genFramebuffers(1, &id);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, id);
+        defer gl.bindFramebuffer(gl.FRAMEBUFFER, 0);
 
-        c.glFramebufferRenderbuffer(c.GL_FRAMEBUFFER, c.GL_DEPTH_ATTACHMENT, c.GL_RENDERBUFFER, depth.id);
-        c.glFramebufferTexture2D(c.GL_FRAMEBUFFER, c.GL_COLOR_ATTACHMENT0, c.GL_TEXTURE_2D, color.id, 0);
+        gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, depth.id);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, color.id, 0);
 
-        const status = c.glCheckFramebufferStatus(c.GL_FRAMEBUFFER);
+        const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
 
-        if (status != c.GL_FRAMEBUFFER_COMPLETE) return error.FuckFailedToCreateFrameBuffer;
+        if (status != gl.FRAMEBUFFER_COMPLETE) return error.FuckFailedToCreateFrameBuffer;
 
-
-        return .{ .id = id, .depth = depth, .color = color };
+        return .{ .id = id, .depth_buffer = depth, .color_buffer = color };
     }
 
     pub fn bind(self: Self) void {
-        c.glBindFramebuffer(c.GL_FRAMEBUFFER, self.id);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, self.id);
     }
 
     pub fn deinit(self: Self) void {
-        c.glDeleteFramebuffers(1, &self.id);
+        self.depth_buffer.deinit();
+        self.color_buffer.deinit();
+        gl.deleteFramebuffers(1, &self.id);
     }
 };
 
@@ -48,31 +48,29 @@ pub const RenderBuffer = struct {
     const Self = @This();
     id: u32,
     
-    pub fn init(width: u32, height: u32) Self {
+    pub fn init(width: i32, height: i32) Self {
         var id: u32 = undefined;
 
-        c.glGenRenderbuffers(1, &id);
-        c.glBindRenderbuffer(c.GL_RENDERBUFFER, id);
-        defer c.glBindRenderbuffer(c.GL_RENDERBUFFER, 0);
-        c.glRenderbufferStorage(c.GL_RENDERBUFFER, c.GL_DEPTH_COMPONENT, width, height);
-
+        gl.genRenderbuffers(1, &id);
+        gl.bindRenderbuffer(gl.RENDERBUFFER, id);
+        defer gl.bindRenderbuffer(gl.RENDERBUFFER, 0);
+        gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT, width, height);
 
         return .{ .id = id };
     }
 
     pub fn bind (self: Self) void {
-        c.glBindRenderbuffer(c.GL_RENDERBUFFER, self.id);
+        gl.bindRenderbuffer(gl.RENDERBUFFER, self.id);
     }
 
     pub fn deinit(self: Self) void {
-        c.glDeleteRenderbuffers(1, &self.id);
+        gl.deleteRenderbuffers(1, &self.id);
     }
-
 };
 
 pub const RenderBufferType = enum (i32) {
-    DepthBuffer = c.GL_DEPTH_COMPONENT,
-    ColorBuffer = c.GL_RGBA8,
+    DepthBuffer = gl.DEPTH_COMPONENT,
+    ColorBuffer = gl.RGBA8,
     /// unused for now because I don't need it!!
     StencilBuffer = unreachable,
 };

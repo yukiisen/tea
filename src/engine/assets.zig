@@ -1,7 +1,9 @@
 const std = @import("std");
 
-const c = @import("deps/glad.zig");
-const stbi = @import("deps/stb_image.zig");
+const gl = @import("zopengl").bindings;
+const zstbi = @import("zstbi");
+
+const Image = zstbi.Image;
 
 /// Low-Level Abstraction over a Texture
 /// It is safe to copy this struct around.
@@ -10,43 +12,44 @@ pub const Texture2D = struct {
     id: u32,
     meta: ImageMeta,
 
-    pub fn init (pixels: [*c]const u8, image: ImageMeta) Self {
+    pub fn init (image: Image, pixelated: bool) Self {
         var tex: u32 = undefined;
-        c.glGenTextures(1, &tex);
-        c.glBindTexture(c.GL_TEXTURE_2D, tex);
-        defer c.glBindTexture(c.GL_TEXTURE_2D, 0);
+        gl.genTextures(1, &tex);
+        gl.bindTexture(gl.TEXTURE_2D, tex);
+        defer gl.bindTexture(gl.TEXTURE_2D, 0);
 
-        c.glTexParameteri(c.GL_TEXTURE_2D, c.GL_TEXTURE_WRAP_S, c.GL_REPEAT);
-        c.glTexParameteri(c.GL_TEXTURE_2D, c.GL_TEXTURE_WRAP_T, c.GL_REPEAT);
-        c.glTexParameteri(c.GL_TEXTURE_2D, c.GL_TEXTURE_MAG_FILTER, if (image.pixelated) c.GL_NEAREST else c.GL_LINEAR);
-        c.glTexParameteri(c.GL_TEXTURE_2D, c.GL_TEXTURE_MIN_FILTER, if (image.pixelated) c.GL_NEAREST else c.GL_LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, if (pixelated) gl.NEAREST else gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, if (pixelated) gl.NEAREST else gl.LINEAR);
 
-        c.glTexImage2D(
-            c.GL_TEXTURE_2D, 
+        gl.texImage2D(
+            gl.TEXTURE_2D, 
             0,
-            if (image.nChannels == 3) c.GL_SRGB else c.GL_SRGB_ALPHA, 
+            if (image.num_components == 3) gl.SRGB else gl.SRGB_ALPHA, 
             image.width, 
             image.height, 
             0, 
-            if (image.nChannels == 3) c.GL_RGB else c.GL_RGBA,
-            c.GL_UNSIGNED_BYTE, 
-            pixels
+            if (image.num_components == 3) gl.RGB else gl.RGBA,
+            gl.UNSIGNED_BYTE, 
+            image.data
         );
 
-        c.glGenerateMipmap(c.GL_TEXTURE_2D);
+        gl.generateMipmap(gl.TEXTURE_2D);
 
         return .{
-            .meta = image,
+            .meta = .{ .width = image.width, .height = image.height, .nChannels = image.num_components, .pixelated = pixelated },
             .id = tex,
         };
     }
 
     pub fn deinit(self: Self) void {
-        c.glDeleteTextures(1, &self.id);
+        gl.deleteTextures(1, &self.id);
     }
 
-    pub fn bind(self: Self) void {
-        c.glBindTexture(c.GL_TEXTURE_2D, self.id);
+    pub fn bind(self: Self, point: i32) void {
+        gl.activeTexture(@intCast(gl.TEXTURE0 + point));
+        gl.bindTexture(gl.TEXTURE_2D, self.id);
     }
 };
 
@@ -57,28 +60,27 @@ pub const CubeTexture = struct {
 
     pub fn init(faces: [6]Image) Self {
         var id: u32 = undefined;
-        c.glGenTextures(1, &id);
-        c.glBindTexture(c.GL_TEXTURE_CUBE_MAP, id);
-        defer c.glBindTexture(c.GL_TEXTURE_CUBE_MAP, 0);
+        gl.genTextures(1, &id);
+        gl.bindTexture(gl.TEXTURE_CUBE_MAP, id);
+        defer gl.bindTexture(gl.TEXTURE_CUBE_MAP, 0);
 
-        c.glTexParameteri(c.GL_TEXTURE_CUBE_MAP, c.GL_TEXTURE_WRAP_S, c.GL_CLAMP_TO_EDGE);
-        c.glTexParameteri(c.GL_TEXTURE_CUBE_MAP, c.GL_TEXTURE_WRAP_T, c.GL_CLAMP_TO_EDGE);
-        c.glTexParameteri(c.GL_TEXTURE_CUBE_MAP, c.GL_TEXTURE_WRAP_R, c.GL_CLAMP_TO_EDGE);
-        c.glTexParameteri(c.GL_TEXTURE_CUBE_MAP, c.GL_TEXTURE_MIN_FILTER, c.GL_LINEAR);
-        c.glTexParameteri(c.GL_TEXTURE_CUBE_MAP, c.GL_TEXTURE_MAG_FILTER, c.GL_LINEAR);
+        gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
 
-        for (faces, 0..) |face, i| {
-            const image = face.meta;
-            c.glTexImage2D(
-                c.GL_TEXTURE_CUBE_MAP_POSITIVE_X + i,
+        for (faces, 0..) |image, i| {
+            gl.texImage2D(
+                gl.TEXTURE_CUBE_MAP_POSITIVE_X + i,
                 0,
-                if (image.nChannels == 3) c.GL_SRGB else c.GL_SRGB_ALPHA, 
+                if (image.num_components == 3) gl.SRGB else gl.SRGB_ALPHA, 
                 image.width, 
                 image.height, 
                 0, 
-                if (image.nChannels == 3) c.GL_RGB else c.GL_RGBA,
-                c.GL_UNSIGNED_BYTE, 
-                face.pixels,
+                if (image.num_components == 3) gl.RGB else gl.RGBA,
+                gl.UNSIGNED_BYTE, 
+                image.data,
             );
         }
 
@@ -86,11 +88,12 @@ pub const CubeTexture = struct {
     }
 
     pub fn deinit(self: Self) void {
-        c.glDeleteTextures(1, &self.id);
+        gl.deleteTextures(1, &self.id);
     }
 
-    pub fn bind(self: Self) void {
-        c.glBindTexture(c.GL_TEXTURE_CUBE_MAP, self.id);
+    pub fn bind(self: Self, point: i32) void {
+        gl.activeTexture(@intCast(gl.TEXTURE0 + point));
+        gl.bindTexture(gl.TEXTURE_CUBE_MAP, self.id);
     }
 };
 
@@ -102,28 +105,20 @@ pub const ImageMeta = struct {
     pixelated: bool,
 };
 
-/// full image with pixels
-pub const Image = struct {
-    meta: ImageMeta,
-    pixels: [*c]const u8,
-};
-
 /// Container for all program assets.
 /// this is responsible of loading assets and converting them accordingly
 /// TODO: implement loading cubemaps from a single file.
 pub const AssetManager = struct {
     const Self = @This();
     
-    io: std.Io,
-    allocator: std.mem.Allocator,
     textures: std.StringHashMap(Texture2D),
     cubes: std.StringHashMap(CubeTexture),
 
-    pub fn init(allocator: std.mem.Allocator, io: std.Io) Self {
-        stbi.stbi_set_flip_vertically_on_load(@intFromBool(true));
+    pub fn init(allocator: std.mem.Allocator) Self {
+        zstbi.setFlipVerticallyOnLoad(true);
+        zstbi.init(allocator);
+
         return .{
-            .io = io,
-            .allocator = allocator,
             .textures = .init(allocator),
             .cubes = .init(allocator),
         };
@@ -131,89 +126,40 @@ pub const AssetManager = struct {
 
     /// load a Texture from path into a texture object
     /// Textures created using this method are automatically freed using the `deinit` method of this instance.
-    pub fn loadTexture(self: *Self, path: []const u8, pixelated: bool, label: []const u8) !Texture2D {
+    pub fn loadTexture(self: *Self, label: []const u8, path: []const u8, pixelated: bool) !void {
         // image loading stuff.
-        const file = try std.Io.Dir.cwd().openFile(self.io, path, .{ .mode = .read_only });
-        defer file.close(self.io);
+        const image = try zstbi.Image.loadFromFile(path, 4);
+        defer image.deinit();
 
-        const meta = try file.stat(self.io);
-
-        const buffer = try self.allocator.alloc(u8, meta.size);
-        defer self.allocator.free(buffer);
-
-        _ = try file.readPositionalAll(self.io, buffer, 0);
-        
-        var width: i32 = undefined;
-        var height: i32 = undefined; 
-        var nChannels: i32 = undefined;
-
-        const data = stbi.stbi_load_from_memory(buffer.ptr, @intCast(buffer.len), &width, &height, &nChannels, 0);
-        if (data == null) return error.FuckStbiFailed;
-        defer stbi.stbi_image_free(data);
-
-        const image: ImageMeta = .{
-            .width = width,
-            .height = height,
-            .pixelated = pixelated,
-            .nChannels = nChannels
-        };
-
-        const tex = Texture2D.init(data, image);
+        const tex = Texture2D.init(image, pixelated);
         try self.textures.put(label, tex);
-
-        return tex;
     }
 
     /// load a cube map from `files` as its faces.
     /// Textures created using this method are automatically freed using the `deinit` method of this instance.
     pub fn loadCubeMultipleFiles(self: *Self, label: []const u8, files: [6][]const u8) !void {
         var images: [6]Image = undefined;
-        defer for (images) |img| stbi.stbi_image_free(img.pixels);
+        var loaded: usize = 0;
+        errdefer for (images[0..loaded]) |*img| img.deinit();
 
         for (files, 0..) |path, i| {
-            const file = try std.Io.Dir.cwd().openFile(self.io, path, .{ .mode = .read_only });
-            defer file.close(self.io);
-
-            const stat = try file.stat(self.io);
-            const size = stat.size;
-
-            const buffer = try self.allocator.alloc(u8, size);
-            defer self.allocator.free(buffer);
-
-            file.readPositionalAll(self.io, buffer, 0);
-
-            const pixels = stbi.stbi_load_from_memory(buffer.ptr, @intCast(buffer.len), &images[i].meta.width, &images[i].meta.height, &images[i].meta.nChannels, 0);
-            if (pixels == null) return error.FuckStbiFailed;
-
-            images[i].pixels = pixels;
+            images[i] = try Image.loadFromFile(path, 4);
+            loaded = i + 1;
         }
 
         const cube_texture = CubeTexture.init(images);
+
+        for (images) |*img| img.deinit();
+        loaded = 0;
+
         try self.cubes.put(label, cube_texture);
     }
 
     /// loads a cube map from a single image as all faces
     /// Textures created using this method are automatically freed using the `deinit` method of this instance.
     pub fn loadCubeRepeat(self: *Self, label: []const u8, path: []const u8) !void {
-        var image: Image = undefined;
-
-        const file = try std.Io.Dir.cwd().openFile(self.io, path, .{ .mode = .read_only });
-        defer file.close(self.io);
-
-        const stat = try file.stat(self.io);
-        const size = stat.size;
-
-        const buffer = try self.allocator.alloc(u8, size);
-        defer self.allocator.free(buffer);
-
-        file.readPositionalAll(self.io, buffer, 0);
-
-        const pixels = stbi.stbi_load_from_memory(buffer.ptr, @intCast(buffer.len), &image.meta.width, &image.meta.height, &image.meta.nChannels, 0);
-        if (pixels == null) return error.FuckStbiFailed;
-        defer stbi.stbi_image_free(pixels);
-
-        image.pixels = pixels;
-
+        const image = try Image.loadFromFile(path, 4);
+        defer image.deinit();
         const images = [6]Image{ image, image, image, image, image, image };
 
         const cube_texture = CubeTexture.init(images);
@@ -224,10 +170,12 @@ pub const AssetManager = struct {
         var textures = self.textures.valueIterator();
         while (textures.next()) |texture| texture.deinit();
 
-        var cubes = self.textures.valueIterator();
+        var cubes = self.cubes.valueIterator();
         while (cubes.next()) |cube| cube.deinit();
         
         self.textures.deinit();
         self.cubes.deinit();
+
+        zstbi.deinit();
     }
 };

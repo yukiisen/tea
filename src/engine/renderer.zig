@@ -1,7 +1,9 @@
 const std = @import("std");
 
-const c = @import("deps/glad.zig");
-const w = @import("deps/glfw3.zig");
+const zopengl = @import("zopengl");
+const gl = zopengl.bindings;
+const gl_loader = zopengl;
+const w = @import("deps/glfw3.zig").w;
 const z = @import("zmath");
 
 const FrameBuffer = @import("framebuffer.zig").FrameBuffer;
@@ -10,10 +12,7 @@ const Texture2D = @import("assets.zig").Texture2D;
 const Shader = @import("shader.zig").Shader;
 const Mesh = @import("components.zig").Mesh;
 
-// resources
-/// A window object is an extension over `FrameBuffer`.
-/// It's a wrapper over GLFW's Window object
-/// This struct is safe to copy around.
+/// A wrapper over GLFW's Window object
 pub const Window = struct {
     const Self = @This();
 
@@ -27,14 +26,15 @@ pub const Window = struct {
     /// TODO: add proper error handling
     /// TODO: allow the user to separate window contexts.
     pub fn init (width: i32, height: i32, title: []const u8) !Self {
-        if (w.glfwInit() == w.GLFW_FALSE) return error.FuckWindowBroke;
+        if (w.glfwInit() == w.GLFW_FALSE) return error.FuckGLFWBroken;
 
         w.glfwWindowHint(w.GLFW_CONTEXT_VERSION_MAJOR, 3);
         w.glfwWindowHint(w.GLFW_CONTEXT_VERSION_MINOR, 3);
         w.glfwWindowHint(w.GLFW_OPENGL_PROFILE, w.GLFW_OPENGL_CORE_PROFILE);
 
-        const context = w.glfwGetCurrentContext();
-        const window = w.glfwCreateWindow(width, height, title.ptr, null, context).?; // assert for now
+        const context = w.glfwGetCurrentContext(); // get the current window so we can attach to it (or null if this is first)
+        const window = w.glfwCreateWindow(width, height, title.ptr, null, context) 
+            orelse return error.FuckWindowBroken;
         
         _ = w.glfwSetFramebufferSizeCallback(window, winresize);
 
@@ -63,7 +63,7 @@ pub const Window = struct {
             self.*.width = width;
             self.*.height = height;
         }
-        c.glViewport(0, 0, width, height);
+        gl.viewport(0, 0, width, height);
     }
     
     pub fn deinit(self: *Self) void {
@@ -73,6 +73,11 @@ pub const Window = struct {
 
     pub fn close(self: Self) void {
         w.glfwSetWindowShouldClose(self.window, 1);
+    }
+
+    /// returns the close flag of the window
+    pub fn shouldClose(self: Self) bool {
+        return w.glfwWindowShouldClose(self.window) != 0;
     }
 
     /// Changes the CurrentContext to this window.
@@ -90,25 +95,26 @@ pub const Window = struct {
         switch (mode) {
             .Windowed => w.glfwSetWindowMonitor(self.window, null, 0, 0, width, height, 0), // separate window and monitor
             .Borderless => {
-                const video_mode = w.glfwGetVideoMode(monitor).?; // use monitor dimentions
-                w.glfwSetWindowMonitor(self.window, monitor, 0, 0, video_mode.*.width, video_mode.*.height, video_mode.*.refreshRate);
-                self.width = video_mode.*.width;
-                self.height = video_mode.*.height;
+                const video_mode = w.glfwGetVideoMode(monitor).?.*; // use monitor dimentions
+                w.glfwSetWindowMonitor(self.window, monitor, 0, 0, video_mode.width, video_mode.height, video_mode.refreshRate);
+                self.width = video_mode.width;
+                self.height = video_mode.height;
             },
             .FullScreen => w.glfwSetWindowMonitor(self.window, monitor, 0, 0, width, height, 60), // make monitor follow window
         }
 
-        self.*.mode = mode;
+        self.mode = mode;
     }
 
     pub fn setTitle(self: Self, title: []const u8) void {
         w.glfwSetWindowTitle(self.window, title.ptr);
     }
 
-    pub fn getSize (self: Self) @Vector(2, i32) {
+    pub fn getSize (self: Self) @Tuple(&.{ i32, i32 }) {
         var width: i32 = 0;
         var height: i32 = 0;
         w.glfwGetFramebufferSize(self.window, &width, &height);
+
         return .{ width, height };
     }
 
@@ -118,13 +124,8 @@ pub const Window = struct {
         w.glfwPollEvents();
     }
 
-    pub fn useFrameBuffer(_: Self) void {
-        c.glBindFramebuffer(c.GL_FRAMEBUFFER, 0);
-    }
-
-    /// returns the close flag of the window
-    pub fn shouldClose(self: Self) bool {
-        return w.glfwWindowShouldClose(self.window) != 0;
+    pub fn bindFrameBuffer(_: Self) void {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, 0);
     }
 };
 
@@ -146,14 +147,13 @@ pub const Renderer = struct {
     /// Init OpenGL and load all relevant functions
     /// This will burn if you create it before creating at least one window
     pub fn init(allocator: std.mem.Allocator) !Self {
-        if (c.gladLoadGLLoader(@ptrCast(&w.glfwGetProcAddress)) == c.GL_FALSE) {
-            return error.FuckGLBurned;
-        }
+        const loader: zopengl.LoaderFn = @ptrCast(&w.glfwGetProcAddress);
+        try gl_loader.loadCoreProfile(loader, 4, 2);
 
-        c.glEnable(c.GL_DEPTH_TEST);
-        c.glEnable(c.GL_BLEND);
-        c.glEnable(c.GL_CULL_FACE);
-        c.glEnable(c.GL_FRAMEBUFFER_SRGB);
+        gl.enable(gl.DEPTH_TEST);
+        gl.enable(gl.BLEND);
+        gl.enable(gl.CULL_FACE);
+        gl.enable(gl.FRAMEBUFFER_SRGB);
 
         return .{ .framebuffers = .empty, .allocator = allocator };
     }
@@ -163,58 +163,56 @@ pub const Renderer = struct {
         self.framebuffers.deinit(self.allocator);
     }
 
-    pub fn disableDepthTest (_: Self) void {
-        c.glDisable(c.GL_DEPTH_TEST);
+    pub fn setDepthTest (_: Self, value: bool) void {
+        if (value) gl.enable(gl.DEPTH_TEST)
+        else gl.disable(gl.DEPTH_TEST);
     }
 
-    pub fn enableDepthTest (_: Self) void {
-        c.glEnable(c.GL_DEPTH_TEST);
+    pub fn setStencilTest (_: Self, value: bool) void {
+        if (!value) gl.disable(gl.STENCIL_TEST)
+        else gl.enable(gl.STENCIL_TEST);
     }
 
-    pub fn disableStencilTest (_: Self) void {
-        c.glDisable(c.GL_STENCIL_TEST);
-    }
-
-    pub fn enableStencilTest (_: Self) void {
-        c.glEnable(c.GL_STENCIL_TEST);
-    }
-
-    pub fn disableBlending (_: Self) void {
-        c.glDisable(c.GL_BLEND);
-    }
-
-    pub fn enableBlending (_: Self) void {
-        c.glEnable(c.GL_BLEND);
+    pub fn setBlending (_: Self, value: bool) void {
+        if (!value) gl.disable(gl.BLEND)
+        else gl.enable(gl.BLEND);
     }
 
     pub fn useShader(_: Self, shader: *const Shader) void {
-        c.glUseProgram(shader.id);
+        gl.useProgram(shader.id);
     }
 
     pub fn clearFrame(_: Self, color: [4]f32) void {
-        c.glClearColor(color[0], color[1], color[2], color[3]);
-        const mask = c.GL_COLOR_BUFFER_BIT | c.GL_STENCIL_BUFFER_BIT | c.GL_DEPTH_BUFFER_BIT;
-        c.glClear(@intCast(mask));
+        gl.clearColor(color[0], color[1], color[2], color[3]);
+        const mask = gl.COLOR_BUFFER_BIT | gl.STENCIL_BUFFER_BIT | gl.DEPTH_BUFFER_BIT;
+        gl.clear(@intCast(mask));
     }
 
-    pub fn drawMesh(self: Self, mesh: *const Mesh, shader: *Shader) void {
+    pub fn drawMesh(self: Self, mesh: *const Mesh, shader: *const Shader, mode: DrawMode) void {
         self.useShader(shader);
         mesh.bind();
 
-        if (mesh.indexed) c.glDrawElements(c.GL_TRIANGLES, mesh.count, c.GL_UNSIGNED_INT, null)
-        else c.glDrawArrays(c.GL_TRIANGLES, 0, mesh.count);
+        if (mesh.indexed) gl.drawElements(@intFromEnum(mode), mesh.count, gl.UNSIGNED_INT, null)
+        else gl.drawArrays(@intFromEnum(mode), 0, mesh.count);
     }
 
     /// creates a framebuffer with the same size as `window`.
     /// The resulting framebuffer will then be saved into the renderer's framebuffers array.
-    pub fn createFramebuffer(self: *Self, size: [2]u32) !FrameBuffer {
+    pub fn createFramebuffer(self: *Self, size: [2]i32) !FrameBuffer {
         const depth = RenderBuffer.init(size[0], size[1]);
-        const color = Texture2D.init(null, .{ 
+        errdefer depth.deinit();
+
+        const color = Texture2D.init(.{ 
+            .data = @as([*c]u8, null),
             .width = size[0], 
             .height = size[1], 
-            .nChannels = 3, 
-            .pixelated = false 
-        });
+            .num_components = 3, 
+            // unused keys.
+            .bytes_per_component = 0,
+            .bytes_per_row = 0,
+            .is_hdr = false,
+        }, false);
+        errdefer color.deinit();
 
         depth.bind();
         color.bind();
@@ -228,36 +226,13 @@ pub const Renderer = struct {
     }
 };
 
-/// A camera object, it can be used as 3D or 2D camera depending on the configuration
-pub const Camera = struct {
-    const Self = @This();
-
-    /// width, height, near, far
-    bounds: z.Vec,
-    position: z.Vec,
-    target: z.Vec,
-    up: z.Vec,
-    fov: f32,
-    projection: CameraProjection,
-
-    pub inline fn getViewMatrix (self: Self) z.Mat {
-        return z.lookAtRh(self.position, self.target, self.up);
-    }
-
-    pub inline fn getProjectionMatrix (self: Self) z.Mat {
-        return 
-        if (self.projection == .Orthognal)
-            z.orthographicRh(self.bounds[0], self.bounds[1], self.bounds[2], self.bounds[3])
-        else 
-            z.perspectiveFovRhGl(self.fov * std.math.pi, self.bounds[0] / self.bounds[1], self.bounds[2], self.bounds[3]);
-    }
-
-    pub inline fn getMatrix (self: Self) z.Mat {
-        return z.mul(self.getViewMatrix(), self.getProjectionMatrix());
-    }
+pub const DrawMode = enum (c_uint) {
+    Points = @as(c_uint, 0x0000),
+    Lines = @as(c_uint, 0x0001),
+    LineLoop = @as(c_uint, 0x0002),
+    LineStrip = @as(c_uint, 0x0003),
+    Triangles = @as(c_uint, 0x0004),
+    TriangleStrip = @as(c_uint, 0x0005),
+    TriangleFan = @as(c_uint, 0x0006),
 };
 
-pub const CameraProjection = enum {
-    Orthognal,
-    Perspective,
-};

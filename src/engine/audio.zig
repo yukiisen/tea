@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const ma = @import("deps/miniaudio.zig");
+const ma = @import("deps/miniaudio.zig").ma;
 
 /// High-Level Abstraction over Miniaudio.
 /// Used to load/play Sound objects.
@@ -20,9 +20,14 @@ pub const Audio = struct {
     pub fn init(allocator: std.mem.Allocator) !Self {
         // miniaudio stores pointers of its structs so we allocate them to keep the same location.
         const engine = try allocator.create(ma.ma_engine);
+        errdefer allocator.destroy(engine);
+
         const fence = try allocator.create(ma.ma_fence);
+        errdefer allocator.destroy(fence);
 
         if (ma.ma_engine_init(null, engine) != ma.MA_SUCCESS) return error.FuckMiniaudioMessedUpEngineInit;
+        errdefer ma.ma_engine_uninit(engine);
+
         if (ma.ma_fence_init(fence) != ma.MA_SUCCESS) return error.FuckMiniaudioMessedUpFenceinit;
 
         return .{ 
@@ -38,9 +43,9 @@ pub const Audio = struct {
         ma.ma_engine_uninit(self.engine);
         var iter = self.sounds.valueIterator();
         while (iter.next()) |sound| {
-            sound.*.deinit();
+            sound.deinit();
         }
-        self.*.sounds.deinit();
+        self.sounds.deinit();
         self.allocator.destroy(self.engine);
         self.allocator.destroy(self.fence);
     }
@@ -65,7 +70,7 @@ pub const Audio = struct {
         if (config.stream) flags |= ma.MA_SOUND_FLAG_STREAM;
 
         const sound = try Sound.init(self.allocator, config.path, self, flags);
-        try self.*.sounds.put(label, sound);
+        try self.sounds.put(label, sound);
 
         return sound;
     }
@@ -105,12 +110,13 @@ pub const Sound = struct {
 
     pub fn init(allocator: std.mem.Allocator, path: []const u8, audio: *Audio, flags: i32) !Self {
         const sound = try allocator.create(ma.ma_sound);
-        if (ma.ma_sound_init_from_file(audio.engine, path.ptr, 0, null, audio.fence, sound) != ma.MA_SUCCESS) return error.FuckSoundInitMessedUp;
+        errdefer allocator.destroy(sound);
+        if (ma.ma_sound_init_from_file(audio.engine, path.ptr, flags, null, audio.fence, sound) != ma.MA_SUCCESS) return error.FuckSoundInitMessedUp;
 
         return .{
             .allocator = allocator,
             .sound = sound,
-            .allow_pitch = flags & ma.MA_SOUND_FLAG_NO_PITCH != 0,
+            .allow_pitch = flags & ma.MA_SOUND_FLAG_NO_PITCH == 0,
         };
     }
 
@@ -143,7 +149,7 @@ pub const Sound = struct {
 
     /// Default volume is 1.
     pub inline fn getVolume(self: Self) f32 {
-        return ma.ma_sound_get_volume(&self.sound);
+        return ma.ma_sound_get_volume(self.sound);
     }
 
     /// changes the pitch of a sound

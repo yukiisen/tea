@@ -1,7 +1,6 @@
 const std = @import("std");
 
-const c = @import("deps/glad.zig");
-const w = @import("deps/glfw3.zig");
+const gl = @import("zopengl").bindings;
 const z = @import("zmath");
 
 /// Used internally by the renderer for shared uniforms
@@ -11,7 +10,7 @@ pub const UniformBuffer = struct {
 
     id: u32,
     allocator: std.mem.Allocator,
-    blob: []u8,
+    blob: *anyopaque,
 
     /// use glsl-compatible types pls :)
     pub fn init(comptime T: type, allocator: std.mem.Allocator) !Self {
@@ -21,33 +20,31 @@ pub const UniformBuffer = struct {
 
         var id: u32 = undefined;
 
-        c.glGenBuffers(1, &id);
-        c.glBindBuffer(c.GL_UNIFORM_BUFFER, id);
-        defer c.glBindBuffer(c.GL_UNIFORM_BUFFER, 0);
+        gl.genBuffers(1, &id);
+        gl.bindBuffer(gl.UNIFORM_BUFFER, id);
+        defer gl.bindBuffer(gl.UNIFORM_BUFFER, 0);
 
         // Generate size from type at compile time because zig is so sexy.
         const size: i32 = comptime blk: {
             var s: i32 = 0;
-
             for (info.fields) |f| s = std140Alignment(f, s);
-
             break :blk s;
         };
 
-        c.glBufferData(c.GL_UNIFORM_BUFFER, size, null, c.GL_STATIC_DRAW);
+        gl.bufferData(gl.UNIFORM_BUFFER, size, null, gl.STATIC_DRAW);
 
-        const buf = try allocator.alloc(u8, @sizeOf(T));
+        const buf = try allocator.create(T);
 
         return .{ .id = id, .allocator = allocator, .blob = buf };
     }
 
     /// returns the new size of the struct after adding a field of type `T` to it.
     /// **Asserts** that `Type.array` fields are all matrices.
-    fn std140Alignment (comptime f: std.builtin.Type.StructField, s: i32) i32 {
+    fn std140Alignment(comptime f: std.builtin.Type.StructField, s: i32) i32 {
         const fi = @typeInfo(f.type);
 
         return switch (fi) {
-            .int, .float, .bool => s += 4,
+            .int, .float, .bool => s + 4,
             .vector  => |v|
                 // alignment shit
                 if (v.len > 2) return s + 16 + (if (s % 16 == 0) 0 else 16 - (s % 16)) // vec3/4
@@ -90,19 +87,21 @@ pub const UniformBuffer = struct {
             break :blk offsets;
         };
 
-        c.glBindBuffer(c.GL_UNIFORM_BUFFER, self.id);
-        defer c.glBindBuffer(c.GL_UNIFORM_BUFFER, 0);
+        gl.bindBuffer(gl.UNIFORM_BUFFER, self.id);
+        defer gl.bindBuffer(gl.UNIFORM_BUFFER, 0);
 
         const buf = self.getPtr(T);
 
         inline for (info.fields, offsets) |field, offset| {
             const finfo = @typeInfo(field.type);
 
+            var nums = [_]u8{ 0, 1 };
+
             switch (finfo) {
-                inline .int, .float => c.glBufferSubData(c.GL_UNIFORM_BUFFER, offset, 4, &@field(buf.*, field.name)),
-                inline .bool => c.glBufferSubData(c.GL_UNIFORM_BUFFER, offset, 4, if (@field(buf.*, field.name)) &1 else &0),
-                inline .vector => |v| c.glBufferSubData(c.GL_UNIFORM_BUFFER, offset, 4 * v.len, z.arrNPtr(&@field(buf.*, field.name))),
-                inline .array => |a| c.glBufferSubData(c.GL_UNIFORM_BUFFER, offset, 4 * 4 * a.len, z.arrNPtr(&@field(buf.*, field.name))),
+                inline .int, .float => gl.bufferSubData(gl.UNIFORM_BUFFER, offset, 4, &@field(buf.*, field.name)),
+                inline .bool => gl.bufferSubData(gl.UNIFORM_BUFFER, offset, 4, if (@field(buf.*, field.name)) &nums[1] else &nums[0]),
+                inline .vector => |v| gl.bufferSubData(gl.UNIFORM_BUFFER, offset, 4 * v.len, z.arrNPtr(&@field(buf.*, field.name))),
+                inline .array => |a| gl.bufferSubData(gl.UNIFORM_BUFFER, offset, 4 * 4 * a.len, z.arrNPtr(&@field(buf.*, field.name))),
                 else => unreachable,
             }
         }
@@ -110,11 +109,11 @@ pub const UniformBuffer = struct {
 
     /// specifies the binding point for this buffer.
     pub fn bindAt(self: Self, point: u32) void {
-        c.glBindBufferBase(c.GL_UNIFORM_BUFFER, point, self.id);
+        gl.bindBufferBase(gl.UNIFORM_BUFFER, point, self.id);
     }
 
     pub fn deinit(self: Self) void {
         self.allocator.free(self.blob);
-        c.glDeleteBuffers(1, &self.id);
+        gl.deleteBuffers(1, &self.id);
     }
 };

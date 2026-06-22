@@ -1,10 +1,9 @@
 const std = @import("std");
 
-const c = @import("deps/glad.zig");
+const gl = @import("zopengl").bindings;
 const z = @import("zmath");
 
 /// Holds Vertex Data of a specific entity
-/// This is used a component and shall be used as a dependency for the Model component later.
 /// Don't change internal data of this struct unless you know what you're doing
 pub const Mesh = struct {
     const Self = @This();
@@ -14,40 +13,45 @@ pub const Mesh = struct {
     indexed: bool,
     count: i32,
 
-    pub fn init(config: MeshConfig) Self {
+    /// create a mesh.
+    /// The input buffers in `config` don't need to outlive this instance, you can free them at any time.
+    pub fn init(config: MeshConfig) !Self {
         var VAO: u32 = undefined;
         var VBO: u32 = undefined;
         var EBO: u32 = undefined;
         const indexed = config.indices != null;
 
-        c.glGenVertexArrays(1, &VAO);
-        c.glGenBuffers(1, &VBO);
-        if (indexed) c.glGenBuffers(1, &EBO);
+        gl.genVertexArrays(1, &VAO);
+        gl.genBuffers(1, &VBO);
+        if (indexed) gl.genBuffers(1, &EBO);
 
-        c.glBindVertexArray(VAO);
-        defer c.glBindVertexArray(0);
+        gl.bindVertexArray(VAO);
+        defer gl.bindVertexArray(0);
 
-        c.glBindBuffer(c.GL_ARRAY_BUFFER, VBO);
-        if (indexed) c.glBindBuffer(c.GL_ELEMENT_ARRAY_BUFFER, EBO);
+        gl.bindBuffer(gl.ARRAY_BUFFER, VBO);
+        if (indexed) gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, EBO);
 
-        c.glBufferData(c.GL_ARRAY_BUFFER, @intCast(config.vertices.len * @sizeOf(Vertex)), config.vertices.ptr, c.GL_STATIC_DRAW);
-        if (config.indices) |indices| c.glBufferData(c.GL_ELEMENT_ARRAY_BUFFER, @intCast(indices.len * @sizeOf(u32)), indices.ptr, c.GL_STATIC_DRAW);
+        gl.bufferData(gl.ARRAY_BUFFER, @intCast(config.vertices.len * @sizeOf(Vertex)), config.vertices.ptr, gl.STATIC_DRAW);
+        if (config.indices) |indices| gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, @intCast(indices.len * @sizeOf(u32)), indices.ptr, gl.STATIC_DRAW);
 
         const info = @typeInfo(Vertex).@"struct";
 
         inline for (info.fields, 0..) |field, i| {
-            c.glVertexAttribPointer(
+            gl.vertexAttribPointer(
                 i,
                 @typeInfo(field.type).array.len,
-                c.GL_FLOAT,
-                c.GL_FALSE, 
+                gl.FLOAT,
+                gl.FALSE, 
                 @sizeOf(Vertex), 
                 @ptrFromInt(@offsetOf(Vertex, field.name))
             );
 
-            c.glEnableVertexAttribArray(i);
+            gl.enableVertexAttribArray(i);
         }
 
+        if (gl.getError() != gl.NO_ERROR) {
+            return error.GlfuckedUp;
+        }
 
         return .{
             .VBO = VBO,
@@ -59,26 +63,116 @@ pub const Mesh = struct {
     }
 
     pub fn bind (self: *const Self) void {
-        c.glBindVertexArray(self.VAO);
+        gl.bindVertexArray(self.VAO);
     }
 
     pub fn deinit(self: Self) void {
-        c.glBindVertexArray(0);
-        c.glDeleteBuffers(1, &self.VBO);
-        if (self.indexed) c.glDeleteBuffers(1, &self.EBO);
-        c.glDeleteVertexArrays(1, &self.VAO);
+        gl.bindVertexArray(0);
+        gl.deleteBuffers(1, &self.VBO);
+        if (self.indexed) gl.deleteBuffers(1, &self.EBO);
+        gl.deleteVertexArrays(1, &self.VAO);
     }
 };
 
 pub const Vertex = struct {
-    position: [3]f32,
-    texCoords: [2]f32,
-    normal: [3]f32,
+    position: [3]f32 = .{ 0, 0, 0 },
+    texCoords: [2]f32 = .{ 0, 0 },
+    normal: [3]f32 = .{ 0, 0, 0 },
 };
 
 pub const MeshConfig = struct {
-    vertices: []Vertex = &[_]Vertex{},
+    vertices: []const Vertex = &.{},
     indices: ?[]const u32 = null,
+
+    pub const quad: MeshConfig = .{
+        .vertices = &.{
+            .{ .position = .{ -0.5, -0.5, 0 }, .texCoords = .{ 0, 0 } },
+            .{ .position = .{ 0.5, -0.5, 0 }, .texCoords = .{ 1, 0 } },
+            .{ .position = .{ 0.5, 0.5, 0 }, .texCoords = .{ 1, 1 } },
+            .{ .position = .{ -0.5, 0.5, 0 }, .texCoords = .{ 0, 1 } },
+        },
+        .indices = &.{ 0, 1, 2, 2, 3, 0 },
+    };
+
+    pub const cube: MeshConfig = .{
+        .vertices = &.{
+            .{ .position = .{ -0.5, -0.5, 0.5 }, .texCoords = .{ 0, 0 }, .normal = .{ 0, 0, 1 } },
+            .{ .position = .{ 0.5, -0.5, 0.5 }, .texCoords = .{ 1, 0 }, .normal = .{ 0, 0, 1 } },
+            .{ .position = .{ 0.5, 0.5, 0.5 }, .texCoords = .{ 1, 1 }, .normal = .{ 0, 0, 1 } },
+            .{ .position = .{ -0.5, 0.5, 0.5 }, .texCoords = .{ 0, 1 }, .normal = .{ 0, 0, 1 } },
+
+            .{ .position = .{ 0.5, -0.5, -0.5 }, .texCoords = .{ 0, 0 }, .normal = .{ 1, 0, 0 } },
+            .{ .position = .{ 0.5, -0.5, 0.5 }, .texCoords = .{ 1, 0 }, .normal = .{ 1, 0, 0 } },
+            .{ .position = .{ 0.5, 0.5, 0.5 }, .texCoords = .{ 1, 1 }, .normal = .{ 1, 0, 0 } },
+            .{ .position = .{ 0.5, 0.5, -0.5 }, .texCoords = .{ 0, 1 }, .normal = .{ 1, 0, 0 } },
+
+            .{ .position = .{ 0.5, -0.5, -0.5 }, .texCoords = .{ 0, 0 }, .normal = .{ 0, 0, -1 } },
+            .{ .position = .{ -0.5, -0.5, -0.5 }, .texCoords = .{ 1, 0 }, .normal = .{ 0, 0, -1 } },
+            .{ .position = .{ -0.5, 0.5, -0.5 }, .texCoords = .{ 1, 1 }, .normal = .{ 0, 0, -1 } },
+            .{ .position = .{ 0.5, 0.5, -0.5 }, .texCoords = .{ 0, 1 }, .normal = .{ 0, 0, -1 } },
+
+            .{ .position = .{ -0.5, -0.5, 0.5 }, .texCoords = .{ 0, 0 }, .normal = .{ -1, 0, 0 } },
+            .{ .position = .{ -0.5, -0.5, -0.5 }, .texCoords = .{ 1, 0 }, .normal = .{ -1, 0, 0 } },
+            .{ .position = .{ -0.5, 0.5, -0.5 }, .texCoords = .{ 1, 1 }, .normal = .{ -1, 0, 0 } },
+            .{ .position = .{ -0.5, 0.5, 0.5 }, .texCoords = .{ 0, 1 }, .normal = .{ -1, 0, 0 } },
+
+            .{ .position = .{ -0.5, 0.5, 0.5 }, .texCoords = .{ 0, 0 }, .normal = .{ 0, 1, 0 } },
+            .{ .position = .{ 0.5, 0.5, 0.5 }, .texCoords = .{ 1, 0 }, .normal = .{ 0, 1, 0 } },
+            .{ .position = .{ 0.5, 0.5, -0.5 }, .texCoords = .{ 1, 1 }, .normal = .{ 0, 1, 0 } },
+            .{ .position = .{ -0.5, 0.5, -0.5 }, .texCoords = .{ 0, 1 }, .normal = .{ 0, 1, 0 } },
+
+            .{ .position = .{ -0.5, -0.5, -0.5 }, .texCoords = .{ 0, 0 }, .normal = .{ 0, -1, 0 } },
+            .{ .position = .{ 0.5, -0.5, -0.5 }, .texCoords = .{ 1, 0 }, .normal = .{ 0, -1, 0 } },
+            .{ .position = .{ 0.5, -0.5, 0.5 }, .texCoords = .{ 1, 1 }, .normal = .{ 0, -1, 0 } },
+            .{ .position = .{ -0.5, -0.5, 0.5 }, .texCoords = .{ 0, 1 }, .normal = .{ 0, -1, 0 } },
+        },
+        .indices = &.{
+            0, 1, 2, 0, 2, 3,
+            4, 5, 6, 4, 6, 7,
+            8, 9, 10, 8, 10, 11,
+            12, 13, 14, 12, 14, 15,
+            16, 17, 18, 16, 18, 19,
+            20, 21, 22, 20, 22, 23,
+        },
+    };
+
+    pub fn circle(comptime segments: u32) MeshConfig {
+        const vert_count = segments + 1;
+        const idx_count = segments * 3;
+
+        const static = struct {
+            var vertices: [vert_count]Vertex = undefined;
+            var indices: [idx_count]u32 = undefined;
+        };
+
+        static.vertices[0] = .{
+            .position = .{ 0, 0, 0 },
+            .texCoords = .{ 0.5, 0.5 },
+            .normal = .{ 0, 0, 1 },
+        };
+
+        for (0..segments) |i| {
+            const angle = @as(f32, @floatFromInt(i)) * (2.0 * std.math.pi) / @as(f32, @floatFromInt(segments));
+            const cos_a = @cos(angle);
+            const sin_a = @sin(angle);
+            static.vertices[i + 1] = .{
+                .position = .{ 0.5 * cos_a, 0.5 * sin_a, 0 },
+                .texCoords = .{ 0.5 + 0.5 * cos_a, 0.5 + 0.5 * sin_a },
+                .normal = .{ 0, 0, 1 },
+            };
+        }
+
+        for (0..segments) |i| {
+            static.indices[i * 3] = 0;
+            static.indices[i * 3 + 1] = @intCast(i + 1);
+            static.indices[i * 3 + 2] = @intCast(if (i + 1 == segments) 1 else i + 2);
+        }
+
+        return .{
+            .vertices = &static.vertices,
+            .indices = &static.indices,
+        };
+    }
 };
 
 /// Contains the local transformations of a Mesh/Model
@@ -88,22 +182,7 @@ pub const Transform = struct {
     scale: z.Mat,
 };
 
-/// Controls the speed of an object
-pub const Velocity = struct {
-    x: f32,
-    y: f32,
-    z: f32,
-};
-
-/// Controls the acceleration of an object
-pub const Acceleration = struct {
-    x: f32,
-    y: f32,
-    z: f32,
-};
-
 /// Allows rendering text on the screen
-/// This is used for UI text since it uses a separate camera from the default one (no perspective).
 pub const Text2D = struct {
 
 };
