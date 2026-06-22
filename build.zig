@@ -4,33 +4,33 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const zmath = b.dependency("zmath", .{});
-
-    const exe = b.addExecutable(.{
-        .name = "minia",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("src/main.zig"),
-            .target = target,
-            .optimize = optimize,
-            .imports = &.{
-                .{ .name = "zmath", .module = zmath.module("root") },
-            },
-        }),
+    const exe_mod = b.createModule(.{
+        .root_source_file = b.path("src/main.zig"),
+        .target = target,
+        .optimize = optimize,
     });
 
-    exe.root_module.linkSystemLibrary("c", .{});
-    exe.root_module.linkSystemLibrary("glfw", .{});
-    exe.root_module.linkSystemLibrary("gl", .{});
+    const zmath = b.dependency("zmath", .{ .target = target, .optimize = optimize });
+    const zopengl = b.dependency("zopengl", .{ .target = target });
+    const zstbi = b.dependency("zstbi", .{ .target = target, .optimize = optimize });
 
-    exe.root_module.addIncludePath(b.path("include/"));
+    exe_mod.addImport("zmath", zmath.module("root"));
+    exe_mod.addImport("zopengl", zopengl.module("root"));
+    exe_mod.addImport("zstbi", zstbi.module("root"));
 
-    exe.root_module.addCSourceFile(.{
+    exe_mod.linkSystemLibrary("c", .{});
+    exe_mod.linkSystemLibrary("glfw", .{});
+
+    exe_mod.addIncludePath(b.path("include/"));
+
+    exe_mod.addCSourceFile(.{
         .file = b.path("./deps/libraries.c"),
         .flags = &.{ "-lpthread", "-ldl" },
     });
 
-    exe.root_module.addCSourceFile(.{
-        .file = b.path("./deps/glad.c"),
+    const exe = b.addExecutable(.{
+        .name = "tea",
+        .root_module = exe_mod,
     });
 
     b.installArtifact(exe);

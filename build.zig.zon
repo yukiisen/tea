@@ -1,19 +1,25 @@
 .{
     .name = .minia,
     .version = "0.0.0",
-    .fingerprint = 0x2d6d9b62ca6017b5, // Changing this has security and trust implications.
+    .fingerprint = 0x2d6d9b62e09ac7f3, // Changing this has security and trust implications.
     .minimum_zig_version = "0.16.0-dev.1484+d0ba6642b",
     .dependencies = .{
         .zmath = .{
             .url = "/home/yuki/Documents/clones/zmath/",
             .hash = "zmath-0.11.0-dev-wjwivdMsAwD-xaLj76YHUq3t9JDH-X16xuMTmnDzqbu2",
         },
+        .zstbi = .{
+            .url = "/home/yuki/Documents/clones/zstbi/",
+            .hash = "zstbi-0.11.0-dev-L0Ea_2yVBwA4uh-tHfgdhZcQaWRoZVYlNGs4Dl_WTeuR",
+        },
+        .zopengl = .{
+            .url = "/home/yuki/Documents/clones/zopengl/",
+            .hash = "zopengl-0.6.0-dev-5-tnz32mDgB82moljuLD0fmbj1mU3NSCXjzttpmoV2iP",
+        },
     },
     .paths = .{
         "build.zig",
         "build.zig.zon",
         "src",
-        "include",
-        "deps",
     },
 }
