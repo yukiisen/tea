@@ -10,7 +10,7 @@ const FrameBuffer = @import("framebuffer.zig").FrameBuffer;
 const RenderBuffer = @import("framebuffer.zig").RenderBuffer;
 const Texture2D = @import("assets.zig").Texture2D;
 const Shader = @import("shader.zig").Shader;
-const Mesh = @import("components.zig").Mesh;
+const Mesh = @import("mesh.zig").Mesh;
 
 /// A wrapper over GLFW's Window object
 pub const Window = struct {
@@ -158,6 +158,7 @@ pub const Renderer = struct {
 
         gl.enable(gl.DEPTH_TEST);
         gl.enable(gl.BLEND);
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
         gl.enable(gl.CULL_FACE);
         gl.enable(gl.FRAMEBUFFER_SRGB);
 

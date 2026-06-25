@@ -51,13 +51,13 @@ pub const Pipeline = struct {
     }
 };
 
-/// Generic render pipeline with ordered passes and a user-defined context T.
-/// Call GetPipeline() to obtain a type-erased Pipeline for the game loop.
+/// Generic render pipeline with latered passes and a user-defined context T.
+/// Call pipeline() to obtain a type-erased Pipeline for the game loop.
 pub fn RenderPipeline(comptime T: type) type {
     return struct {
         const Self = @This();
 
-        const RenderFn = *const fn (RenderContext, *const Frame, *T) anyerror!void;
+        const RenderFn = *const fn (*T, *const Frame, RenderContext) anyerror!void;
 
         pub const RenderPass = struct {
             exec: RenderFn,

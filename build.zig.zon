@@ -10,7 +10,7 @@
         },
         .zstbi = .{
             .url = "/home/yuki/Documents/clones/zstbi/",
-            .hash = "zstbi-0.11.0-dev-L0Ea_2yVBwA4uh-tHfgdhZcQaWRoZVYlNGs4Dl_WTeuR",
+            .hash = "zstbi-0.11.0-dev-L0Ea_xyYBwDeK_EQEWlkwH__97KA5imdItos4y8VTqmL",
         },
         .zopengl = .{
             .url = "/home/yuki/Documents/clones/zopengl/",

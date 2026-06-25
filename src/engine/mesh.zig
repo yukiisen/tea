@@ -3,6 +3,8 @@ const std = @import("std");
 const gl = @import("zopengl").bindings;
 const z = @import("zmath");
 
+const glError = @import("utils.zig").glError;
+
 /// Holds Vertex Data of a specific entity
 /// Don't change internal data of this struct unless you know what you're doing
 pub const Mesh = struct {
@@ -34,7 +36,7 @@ pub const Mesh = struct {
         gl.bufferData(gl.ARRAY_BUFFER, @intCast(config.vertices.len * @sizeOf(Vertex)), config.vertices.ptr, gl.STATIC_DRAW);
         if (config.indices) |indices| gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, @intCast(indices.len * @sizeOf(u32)), indices.ptr, gl.STATIC_DRAW);
 
-        const fields: []const std.builtin.Type.StructField = std.meta.fields(Vertex);
+        const fields = @typeInfo(Vertex).@"struct".fields;
 
         inline for (fields, 0..) |field, i| {
             gl.vertexAttribPointer(
@@ -49,9 +51,7 @@ pub const Mesh = struct {
             gl.enableVertexAttribArray(i);
         }
 
-        if (gl.getError() != gl.NO_ERROR) {
-            return error.GlfuckedUp;
-        }
+        try glError(gl.getError());
 
         return .{
             .VBO = VBO,
@@ -174,16 +174,4 @@ pub const MeshConfig = struct {
             .indices = &static.indices,
         };
     }
-};
-
-/// Contains the local transformations of a Mesh/Model
-pub const Transform = struct {
-    translate: z.Mat,
-    rotate: z.Mat,
-    scale: z.Mat,
-};
-
-/// Allows rendering text on the screen
-pub const Text2D = struct {
-
 };

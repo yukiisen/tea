@@ -138,7 +138,8 @@ pub const Shader = struct {
                 if (i.signedness == .signed) gl.uniform1i(location, uniform)
                 else gl.uniform1ui(location, uniform)
             ,
-            inline .float => gl.uniform1f(location, uniform),
+            inline .comptime_int => gl.uniform1i(location, @intCast(uniform)),
+            inline .float, .comptime_float => gl.uniform1f(location, uniform),
             inline .bool => gl.uniform1i(location, @intFromBool(uniform)),
             inline .vector => |v| {
                 switch (@typeInfo(v.child)) {

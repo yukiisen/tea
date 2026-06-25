@@ -35,13 +35,12 @@ pub const CubeTexture = @import("assets.zig").CubeTexture;
 pub const Image = @import("assets.zig").Image;
 pub const ImageMeta = @import("assets.zig").ImageMeta;
 
-pub const Mesh = @import("components.zig").Mesh;
-pub const MeshConfig = @import("components.zig").MeshConfig;
-pub const Vertex = @import("components.zig").Vertex;
+pub const Mesh = @import("mesh.zig").Mesh;
+pub const MeshConfig = @import("mesh.zig").MeshConfig;
+pub const Vertex = @import("mesh.zig").Vertex;
 
-pub const Transform = @import("components.zig").Transform;
-
-// pub const FontAtlas = @import("font.zig").FontAtlas;
-// pub const MsdfTexture = @import("font.zig").MsdfTexture;
-// pub const Glyph = @import("font.zig").Glyph;
-// pub const FontMetrics = @import("font.zig").FontMetrics;
+pub const FontAtlas = @import("font.zig").FontAtlas;
+pub const Glyph = @import("font.zig").Glyph;
+pub const FontJson = @import("font.zig").FontJson;
+pub const Box = @import("font.zig").Box;
+pub const Text2D = @import("font.zig").Text2D;

@@ -3,6 +3,8 @@ const std = @import("std");
 const gl = @import("zopengl").bindings;
 const zstbi = @import("zstbi");
 
+const glError = @import("utils.zig").glError;
+
 const Image = zstbi.Image;
 
 /// Low-Level Abstraction over a Texture
@@ -12,7 +14,7 @@ pub const Texture2D = struct {
     id: u32,
     meta: ImageMeta,
 
-    pub fn init (image: Image, pixelated: bool) Self {
+    pub fn init (image: Image, pixelated: bool) !Self {
         var tex: u32 = undefined;
         gl.genTextures(1, &tex);
         gl.bindTexture(gl.TEXTURE_2D, tex);
@@ -27,15 +29,17 @@ pub const Texture2D = struct {
             gl.TEXTURE_2D, 
             0,
             if (image.num_components == 3) gl.SRGB else gl.SRGB_ALPHA, 
-            image.width, 
-            image.height, 
+            @intCast(image.width), 
+            @intCast(image.height), 
             0, 
             if (image.num_components == 3) gl.RGB else gl.RGBA,
             gl.UNSIGNED_BYTE, 
-            image.data
+            image.data.ptr
         );
 
         gl.generateMipmap(gl.TEXTURE_2D);
+
+        try glError(gl.getError());
 
         return .{
             .meta = .{ .width = image.width, .height = image.height, .nChannels = image.num_components, .pixelated = pixelated },
@@ -99,9 +103,9 @@ pub const CubeTexture = struct {
 
 /// image metadata per texture.
 pub const ImageMeta = struct {
-    width: i32,
-    height: i32,
-    nChannels: i32,
+    width: u32,
+    height: u32,
+    nChannels: u32,
     pixelated: bool,
 };
 
@@ -115,8 +119,8 @@ pub const AssetManager = struct {
     cubes: std.StringHashMap(CubeTexture),
 
     pub fn init(allocator: std.mem.Allocator) Self {
+        if (!zstbi.isInitialized()) zstbi.init(allocator) catch unreachable;
         zstbi.setFlipVerticallyOnLoad(true);
-        zstbi.init(allocator);
 
         return .{
             .textures = .init(allocator),
@@ -128,10 +132,10 @@ pub const AssetManager = struct {
     /// Textures created using this method are automatically freed using the `deinit` method of this instance.
     pub fn loadTexture(self: *Self, label: []const u8, path: []const u8, pixelated: bool) !void {
         // image loading stuff.
-        const image = try zstbi.Image.loadFromFile(path, 4);
+        var image = try zstbi.Image.loadFromFile(path, 4);
         defer image.deinit();
 
-        const tex = Texture2D.init(image, pixelated);
+        const tex = try Texture2D.init(image, pixelated);
         try self.textures.put(label, tex);
     }
 
@@ -158,9 +162,9 @@ pub const AssetManager = struct {
     /// loads a cube map from a single image as all faces
     /// Textures created using this method are automatically freed using the `deinit` method of this instance.
     pub fn loadCubeRepeat(self: *Self, label: []const u8, path: []const u8) !void {
-        const image = try Image.loadFromFile(path, 4);
+        var image = try Image.loadFromFile(path, 4);
         defer image.deinit();
-        const images = [6]Image{ image, image, image, image, image, image };
+        const images = [_]Image{ image } ** 6;
 
         const cube_texture = CubeTexture.init(images);
         try self.cubes.put(label, cube_texture);
@@ -176,6 +180,6 @@ pub const AssetManager = struct {
         self.textures.deinit();
         self.cubes.deinit();
 
-        zstbi.deinit();
+        zstbi.deinit(); // ummmmmm
     }
 };
