@@ -95,7 +95,7 @@ pub fn main(init: std.process.Init) !void {
     defer window.deinit();
     window.prepare();
 
-    window.setWindowMode(.Borderless);
+    window.setWindowMode(.Windowed);
 
     var renderer = try engine.Renderer.init(allocator);
     defer renderer.deinit();
@@ -137,18 +137,28 @@ pub fn main(init: std.process.Init) !void {
     var keyboard = engine.Keyboard.init(&window);
     var clock = engine.Clock.init();
 
+    var joystick = try engine.Joystick.init(.Joystick3);
+    std.debug.print("Detected Joystick {s}\n", .{ joystick.name });
+    var gamepad = try engine.Gamepad.init(&joystick);
+    std.debug.print("Detected Gamepad {s}\n", .{ gamepad.name });
+
     var pos_x: f32 = 0;
     var pos_y: f32 = 0;
     const speed = 4;
 
     while (!window.shouldClose()) {
         clock.tick();
+        try gamepad.update();
         const dt = @as(f32, @floatCast(clock.dt()));
 
-        if (keyboard.isPressed(.Left)) pos_x -= speed * dt;
-        if (keyboard.isPressed(.Right)) pos_x += speed * dt;
-        if (keyboard.isPressed(.Up)) pos_y += speed * dt;
-        if (keyboard.isPressed(.Down)) pos_y -= speed * dt;
+        if (keyboard.isPressed(.Left) or gamepad.isPressed(.DpadLeft)) pos_x -= speed * dt
+        else if (keyboard.isPressed(.Right) or gamepad.isPressed(.DpadRight)) pos_x += speed * dt
+        else if (keyboard.isPressed(.Up) or gamepad.isPressed(.DpadUp)) pos_y += speed * dt
+        else if (keyboard.isPressed(.Down) or gamepad.isPressed(.DpadDown)) pos_y -= speed * dt
+        else {
+            pos_x += gamepad.getAxis(.RightX) * speed * dt;
+            pos_y -= gamepad.getAxis(.RightY) * speed * dt;
+        }
 
         if (keyboard.isPressed(.Q)) window.close();
 

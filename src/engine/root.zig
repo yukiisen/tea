@@ -15,6 +15,14 @@ pub const CursorMode = @import("input.zig").CursorMode;
 pub const Clipboard = @import("input.zig").Clipboard;
 pub const Clock = @import("input.zig").Clock;
 
+pub const Joystick = @import("input.zig").Joystick;
+pub const JoystickId = @import("input.zig").JoystickId;
+pub const JoystickHatPos = @import("input.zig").JoystickHatPos;
+
+pub const Gamepad = @import("input.zig").Gamepad;
+pub const GamepadAxis = @import("input.zig").GamepadAxis;
+pub const GamepadButton = @import("input.zig").GamepadButton;
+
 pub const Audio = @import("audio.zig").Audio;
 pub const Sound = @import("audio.zig").Sound;
 pub const SoundConfig = @import("audio.zig").SoundConfig;

@@ -277,3 +277,178 @@ pub const Clock = struct {
         return w.glfwGetTime();
     }
 };
+
+pub const Joystick = struct {
+    const Self = @This();
+
+    id: c_int,
+    name: [*c]const u8,
+
+    _axes: [16]f32 = undefined,
+    _buttons: [128]bool = undefined,
+    _hats: [16]JoystickHatPos = undefined,
+
+    axes: []const f32 = &.{},
+    buttons: []const bool = &.{},
+    hats: []const JoystickHatPos = &.{},
+
+    pub fn init(id: JoystickId) !Self {
+        if (!present(id)) return error.JoystickNotPresent;
+
+        return .{
+            .id = @intFromEnum(id),
+            .name = w.glfwGetJoystickName(@intFromEnum(id)),
+        };
+    }
+
+    pub fn update(self: *Self) !void {
+        var count: i32 = undefined;
+
+        const axes = w.glfwGetJoystickAxes(self.id, &count);
+        for (0..@intCast(count)) |i| self._axes[i] = axes[i];
+
+        self.axes = self._axes[0..@intCast(count)];
+        
+        const buttons = w.glfwGetJoystickButtons(self.id, &count);
+        for (0..@intCast(count)) |i| self._buttons[i] = buttons[i] == w.GLFW_PRESS;
+
+        self.buttons = self._buttons[0..@intCast(count)];
+
+        const hats = w.glfwGetJoystickHats(self.id, &count);
+        for (0..@intCast(count)) |i| self._hats[i] = @enumFromInt(hats[i]);
+
+        self.hats = self._hats[0..@intCast(count)];
+    }
+
+    pub fn asGamepad(self: Self) !Gamepad {
+        return try Gamepad.init(&self);
+    }
+
+    pub fn getFirstConnected() ?JoystickId {
+        for (0..16) |i| {
+            const id: JoystickId = @enumFromInt(i);
+            if (present(id)) return id;
+        }
+
+        return null;
+    }
+
+    pub fn present(id: JoystickId) bool {
+        const val = w.glfwJoystickPresent(@intFromEnum(id));
+        return val != 0;
+    }
+};
+
+pub const JoystickHatPos = enum (u8) {
+    const Self = @This();
+
+    Centered = 0,
+    Up = 1,
+    Right = 2,
+    Down = 4,
+    Left = 8,
+    RightUp = w.GLFW_HAT_RIGHT | w.GLFW_HAT_UP,
+    RightDown= w.GLFW_HAT_RIGHT | w.GLFW_HAT_DOWN,
+    LeftUp = w.GLFW_HAT_LEFT | w.GLFW_HAT_UP,
+    LeftDown = w.GLFW_HAT_LEFT | w.GLFW_HAT_DOWN,
+
+    pub fn is(self: Self, val: Self) bool {
+        return (@intFromEnum(self) & @intFromEnum(val)) != 0;
+    }
+};
+
+pub const JoystickId = enum (c_int) {
+    Joystick1 = @as(c_int, 0),
+    Joystick2 = @as(c_int, 1),
+    Joystick3 = @as(c_int, 2),
+    Joystick4 = @as(c_int, 3),
+    Joystick5 = @as(c_int, 4),
+    Joystick6 = @as(c_int, 5),
+    Joystick7 = @as(c_int, 6),
+    Joystick8 = @as(c_int, 7),
+    Joystick9 = @as(c_int, 8),
+    Joystick10 = @as(c_int, 9),
+    Joystick11 = @as(c_int, 10),
+    Joystick12 = @as(c_int, 11),
+    Joystick13 = @as(c_int, 12),
+    Joystick14 = @as(c_int, 13),
+    Joystick15 = @as(c_int, 14),
+    Joystick16 = @as(c_int, 15),
+};
+
+pub const Gamepad = struct {
+    const Self = @This();
+
+    id: c_int,
+    name: [*c]const u8,
+    state: w.GLFWgamepadstate = undefined,
+
+    pub fn init(base: *const Joystick) !Self {
+        if (!isGamepad(base)) return error.JoystickIsNotAGamepad;
+
+        var state: w.GLFWgamepadstate = undefined;
+        if (w.glfwGetGamepadState(base.id, &state) == 0) return error.StateQueryFailed;
+
+        return .{
+            .id = base.id,
+            .name = w.glfwGetGamepadName(base.id),
+            .state = state,
+        };
+    }
+
+    pub fn update(self: *Self) !void {
+        if (w.glfwGetGamepadState(self.id, &self.state) == 0) return error.StateQueryFailed;
+    }
+
+    pub fn isPressed(self: *const Self, button: GamepadButton) bool {
+        return self.state.buttons[button.value()] == w.GLFW_PRESS;
+    }
+
+    pub fn getAxis(self: *const Self, axis: GamepadAxis) f32 {
+        return self.state.axes[@intFromEnum(axis)];
+    }
+
+    pub fn isGamepad(joystick: *const Joystick) bool {
+        return w.glfwJoystickIsGamepad(joystick.id) != 0;
+    }
+};
+
+pub const GamepadAxis = enum (u3) {
+    LeftX = @as(u3, 0),
+    LeftY = @as(u3, 1),
+    RightX = @as(u3, 2),
+    RightY = @as(u3, 3),
+    LeftTrigger = @as(u3, 4),
+    RightTrigger = @as(u3, 5),
+};
+
+pub const GamepadButton = enum {
+    A, B, X, Y,
+    LeftBumper, RightBumper,
+    Back, Start, Guide,
+    LeftThumb, RightThumb,
+    DpadUp, DpadRight, DpadDown, DpadLeft,
+    Cross, Circle, Square, Triangle,
+
+    pub fn value(self: GamepadButton) usize {
+        return @intCast(
+            switch (self) {
+                .A, .Cross => w.GLFW_GAMEPAD_BUTTON_A,
+                .B, .Circle => w.GLFW_GAMEPAD_BUTTON_B,
+                .X, .Square => w.GLFW_GAMEPAD_BUTTON_X,
+                .Y, .Triangle => w.GLFW_GAMEPAD_BUTTON_Y,
+                .LeftBumper => w.GLFW_GAMEPAD_BUTTON_LEFT_BUMPER,
+                .RightBumper => w.GLFW_GAMEPAD_BUTTON_RIGHT_BUMPER,
+                .Back => w.GLFW_GAMEPAD_BUTTON_BACK,
+                .Start => w.GLFW_GAMEPAD_BUTTON_START,
+                .Guide => w.GLFW_GAMEPAD_BUTTON_GUIDE,
+                .LeftThumb => w.GLFW_GAMEPAD_BUTTON_LEFT_THUMB,
+                .RightThumb => w.GLFW_GAMEPAD_BUTTON_RIGHT_THUMB,
+                .DpadUp => w.GLFW_GAMEPAD_BUTTON_DPAD_UP,
+                .DpadDown => w.GLFW_GAMEPAD_BUTTON_DPAD_DOWN,
+                .DpadLeft => w.GLFW_GAMEPAD_BUTTON_DPAD_LEFT,
+                .DpadRight => w.GLFW_GAMEPAD_BUTTON_DPAD_RIGHT,
+            }
+        );
+    }
+};
