@@ -18,7 +18,7 @@ pub const Window = struct {
 
     window: *w.GLFWwindow,
     mode: WindowMode = .Windowed,
-    vsync: bool = false,
+    vsync: bool = true,
     width: i32,
     height: i32,
 
@@ -39,6 +39,7 @@ pub const Window = struct {
         _ = w.glfwSetFramebufferSizeCallback(window, winresize);
 
         if (context == null) w.glfwMakeContextCurrent(window); // first window is used as current context
+        w.glfwSwapInterval(1);
 
         return .{
             .window = window,

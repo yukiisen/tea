@@ -101,8 +101,7 @@ pub fn main(init: std.process.Init) !void {
     defer window.deinit();
     window.prepare();
 
-    window.setWindowMode(.Borderless);
-    window.setVSync(false);
+    window.setWindowMode(.Windowed);
 
     var renderer = try engine.Renderer.init(allocator);
     defer renderer.deinit();
@@ -127,13 +126,13 @@ pub fn main(init: std.process.Init) !void {
         .fragment = "shaders/text.frag.glsl",
     });
 
-    var camera = fw.Camera.Default2D(&window, .vec2(200, 0));
+    var camera = fw.Camera.init2D(&window, .vec2(200, 0));
     camera.calculateMatrices();
 
     var mesh = try engine.Mesh.init(.circle(32));
     defer mesh.deinit();
 
-    var mesh2 = try engine.Mesh.init(.circle(5));
+    var mesh2 = try engine.Mesh.init(.circle(16));
     defer mesh2.deinit();
 
     var keyboard = engine.Keyboard.init(&window);
@@ -147,6 +146,7 @@ pub fn main(init: std.process.Init) !void {
     var pos_x: f32 = 0;
     var pos_y: f32 = 0;
     const speed = 4;
+    const camSpeed = 600;
 
     while (!window.shouldClose()) {
         clock.tick();
@@ -156,14 +156,14 @@ pub fn main(init: std.process.Init) !void {
         try text.print("{d:.0}FPS", .{1/dt});
         try text.flush();
 
-        if (keyboard.isPressed(.Left) or gamepad.isPressed(.DpadLeft)) pos_x -= speed * dt
-        else if (keyboard.isPressed(.Right) or gamepad.isPressed(.DpadRight)) pos_x += speed * dt
-        else if (keyboard.isPressed(.Up) or gamepad.isPressed(.DpadUp)) pos_y += speed * dt
-        else if (keyboard.isPressed(.Down) or gamepad.isPressed(.DpadDown)) pos_y -= speed * dt
-        else {
-            pos_x += gamepad.getAxis(.RightX) * speed * dt;
-            pos_y -= gamepad.getAxis(.RightY) * speed * dt;
-        }
+        if (keyboard.isPressed(.Left) or gamepad.isPressed(.DpadLeft)) pos_x -= speed * dt;
+        if (keyboard.isPressed(.Right) or gamepad.isPressed(.DpadRight)) pos_x += speed * dt;
+        if (keyboard.isPressed(.Up) or gamepad.isPressed(.DpadUp)) pos_y += speed * dt;
+        if (keyboard.isPressed(.Down) or gamepad.isPressed(.DpadDown)) pos_y -= speed * dt;
+
+        const dx = gamepad.getAxis(.LeftX) * camSpeed * dt;
+        const dy = gamepad.getAxis(.LeftY) * camSpeed * dt;
+        camera.moveBy(.vec2(dx, -dy));
 
         if (keyboard.isPressed(.Q)) window.close();
 

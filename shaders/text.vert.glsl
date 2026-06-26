@@ -8,6 +8,6 @@ uniform mat4 u_view;
 out vec2 vTexCoords;
 
 void main() {
-    gl_Position = u_proj * u_view * vec4(aPos, 0, 1.0);
+    gl_Position = u_proj * u_view * vec4(aPos, 1, 1.0);
     vTexCoords = aTexCoords;
 }

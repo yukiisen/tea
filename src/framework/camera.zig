@@ -13,7 +13,7 @@ pub const Camera = struct {
     bounds: z.Vec,
     position: z.Vec,
     /// direction in which the camera is looking
-    target: z.Vec,
+    direction: z.Vec,
     /// arbitrary up vector
     up: z.Vec,
     fov: f32,
@@ -26,11 +26,11 @@ pub const Camera = struct {
     /// check `Camera.calculateMatrices`
     matrix: z.Mat = z.identity(),
 
-    pub fn Default2D(window: *Window, pos: Vec) Self {
+    pub fn init2D(window: *Window, pos: Vec) Self {
         var cam: Self = .{
-            .bounds = .{ @as(f32, @floatFromInt(window.width)), @as(f32, @floatFromInt(window.height)), 0.1, 1 },
+            .bounds = .{ @as(f32, @floatFromInt(window.width)), @as(f32, @floatFromInt(window.height)), 0.1, 100 },
             .position = pos.value,
-            .target = pos.value - z.Vec{ 0, 0, 1, 0 },
+            .direction = z.Vec{ 0, 0, -1, 0 },
             .up = z.Vec{ 0, 1, 0, 0 },
             .fov = 0,
             .projection = .Orthogonal
@@ -41,11 +41,11 @@ pub const Camera = struct {
         return cam;
     }
 
-    pub fn Default3D(window: *Window, pos: Vec) Self {
+    pub fn init3D(window: *Window, pos: Vec) Self {
         var cam: Self = .{
-            .bounds = .{ @as(f32, @floatFromInt(window.width)), @as(f32, @floatFromInt(window.height)), 0.1, 1 },
+            .bounds = .{ @as(f32, @floatFromInt(window.width)), @as(f32, @floatFromInt(window.height)), 0.1, 100 },
             .position = pos.value,
-            .target = pos.value - z.Vec{ 0, 0, 1, 0 },
+            .direction = z.Vec{ 0, 0, -1, 0 },
             .up = z.Vec{ 0, 1, 0, 0 },
             .fov = 45,
             .projection = .Perspective
@@ -65,22 +65,23 @@ pub const Camera = struct {
 
     pub fn moveTo(self: *Self, pos: Vec) void {
         self.position = pos.value;
-        self.target = pos.value + self.getDirection();
+        self.calculateMatrices();
     }
 
-    pub inline fn getDirection(self: *Self) z.Vec {
-        return (self.target - self.position);
+    pub fn moveBy(self: *Self, pos: Vec) void {
+        self.position += pos.value;
+        self.calculateMatrices();
     }
 
     pub inline fn getViewMatrix (self: Self) z.Mat {
-        return z.lookAtRh(self.position, self.target, self.up);
+        return z.lookAtRh(self.position, self.position + self.direction, self.up);
     }
 
     pub inline fn getProjectionMatrix (self: Self) z.Mat {
-        if (self.projection == .Orthogonal)
-            return z.orthographicRh(self.bounds[0], self.bounds[1], self.bounds[2], self.bounds[3])
-        else 
-            return z.perspectiveFovRhGl(std.math.degreesToRadians(self.fov), self.bounds[0] / self.bounds[1], self.bounds[2], self.bounds[3]);
+        return switch (self.projection) {
+            .Orthogonal => z.orthographicRh(self.bounds[0], self.bounds[1], self.bounds[2], self.bounds[3]),
+            .Perspective => z.perspectiveFovRhGl(std.math.degreesToRadians(self.fov), self.bounds[0] / self.bounds[1], self.bounds[2], self.bounds[3]),
+        };
     }
 };
 

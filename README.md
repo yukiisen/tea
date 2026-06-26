@@ -40,7 +40,6 @@ shaders/        GLSL shaders
 - [ ] Support custom cursors.
 - [ ] Render buffer type selection.
 - [*] Proper error handling for window creation.
-- [ ] Safe user-pointer registration (Window.prepare)
 - [ ] Improve code quality.
 
 and more stuff I forgot.
