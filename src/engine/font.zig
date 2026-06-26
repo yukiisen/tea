@@ -13,7 +13,6 @@ const assets = @import("assets.zig");
 const Texture2D = assets.Texture2D;
 
 const Dir = std.Io.Dir;
-const Writer = std.Io.Writer;
 
 const json = std.json;
 const gl = zopengl.bindings;
@@ -184,7 +183,7 @@ pub const Text2D = struct {
     vbo: u32,
     ebo: u32,
 
-    content: std.ArrayList(u8),
+    content: []u8,
     font: *FontAtlas,
 
     /// Hexadecimal text color.
@@ -234,25 +233,28 @@ pub const Text2D = struct {
             .vbo = VBO,
             .vao = VAO,
             .ebo = EBO,
-            .content = .empty,
+            .content = &.{},
             .font = font,
         };
     }
 
     pub fn clear(self: *Self) void {
-        self.content.clearAndFree(self.gpa);
+        self.gpa.free(self.content);
     }
 
-    pub fn writer(self: *Self) std.Io.Writer {
-        return std.Io.Writer.fromArrayList(&self.content);
+    pub fn write(self: *Self, slice: []const u8) !void {
+        self.clear();
+        self.content = try self.gpa.dupe(u8, slice);
     }
 
-    pub fn putText(self: *Self, text: []const u8) !void {
-        try self.content.appendSlice(self.gpa, text);
+    pub fn print(self: *Self, comptime fmt: []const u8, args: anytype) !void {
+        const slice = try std.fmt.allocPrint(self.gpa, fmt, args);
+        self.clear();
+        self.content = slice;
     }
 
     pub fn flush(self: *Self) !void {
-        const text = self.content.items;
+        const text = self.content;
 
         var cursor = Coord { .x = 0, .y = 0 };
 
@@ -338,13 +340,13 @@ pub const Text2D = struct {
             .VAO = self.vao,
             .EBO = self.ebo,
             .VBO = self.vbo,
-            .count = @intCast(self.content.items.len * 6),
+            .count = @intCast(self.content.len * 6),
             .indexed = true
         };
     }
 
     pub fn deinit(self: *Self) void {
-        self.content.deinit(self.gpa);
+        self.clear();
         gl.bindVertexArray(0);
         gl.deleteBuffers(1, &self.vbo);
         gl.deleteBuffers(1, &self.ebo);

@@ -11,32 +11,40 @@ pub fn main(init: std.process.Init) !void {
     const allocator = init.gpa;
     const io = init.io;
 
-    // const MyState = struct {
-    //     greet: []const u8,
-    //
-    //     pub fn update(self: *@This(), dt: f64) void { 
-    //         _ = dt;
-    //
-    //
-    //         std.debug.print("{s} update mom\n", .{self.greet});
-    //     }
-    //
-    //     pub fn render(self: *@This(), f: *fw.Frame) void { 
-    //         _ = f;
-    //
-    //         std.debug.print("{s} render mom\n", .{self.greet});
-    //     }
-    // };
-    //
-    // const state = try allocator.create(MyState);
-    // state.greet = "hello";
-    //
-    // const gs = fw.Scene.wrap(state);
-    //
-    // try gs.update(4);
-    // try gs.render(undefined);
-    //
-    // gs.deinitFn(gs.ptr, allocator);
+    const MyState = struct {
+        greet: []const u8,
+
+        pub fn update(self: *@This(), dt: f64, ctx: *fw.GameContext) void { 
+            _ = dt;
+            _ = ctx;
+
+            std.debug.print("{s} update mom\n", .{self.greet});
+        }
+
+        pub fn render(self: *@This(), f: *fw.Frame) void { 
+            _ = f;
+
+            std.debug.print("{s} render mom\n", .{self.greet});
+        }
+
+        pub fn deinit(self: *@This()) void {
+            _ = self;
+
+            std.debug.print("it is the end of mine!!\n", .{});
+        }
+    };
+
+    const state = try allocator.create(MyState);
+    defer allocator.destroy(state);
+    state.greet = "hello";
+
+    const gs = fw.Scene.wrap(state);
+    defer gs.deinit();
+
+    try gs.update(4, undefined);
+    try gs.render(undefined);
+    try gs.load(undefined);
+
     //
     var scene = fw.SceneGraph.init(allocator);
     defer scene.deinit();
@@ -89,13 +97,12 @@ pub fn main(init: std.process.Init) !void {
         }
     }.f, undefined);
 
-    // std.process.exit(0);
-
     var window = try engine.Window.init(800, 600, "tea");
     defer window.deinit();
     window.prepare();
 
-    window.setWindowMode(.Windowed);
+    window.setWindowMode(.Borderless);
+    window.setVSync(false);
 
     var renderer = try engine.Renderer.init(allocator);
     defer renderer.deinit();
@@ -104,13 +111,8 @@ pub fn main(init: std.process.Init) !void {
     defer font.deinit();
     defer @import("zstbi").deinit();
 
-    font.metrics.em_size = 32;
-
     var text = try Text2D.init(allocator, &font);
     defer text.deinit();
-
-    try text.putText("Pixel is a femboy!!!");
-    try text.flush();
 
     var shaders = engine.ShaderManager.init(allocator, io);
     defer shaders.deinit();
@@ -150,6 +152,9 @@ pub fn main(init: std.process.Init) !void {
         clock.tick();
         try gamepad.update();
         const dt = @as(f32, @floatCast(clock.dt()));
+
+        try text.print("{d:.0}FPS", .{1/dt});
+        try text.flush();
 
         if (keyboard.isPressed(.Left) or gamepad.isPressed(.DpadLeft)) pos_x -= speed * dt
         else if (keyboard.isPressed(.Right) or gamepad.isPressed(.DpadRight)) pos_x += speed * dt

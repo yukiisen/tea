@@ -24,7 +24,6 @@ pub const Window = struct {
 
     /// creates a GLFW window with the specified attributes.
     /// Additional windows will share the same resources with the first created window.
-    /// TODO: add proper error handling
     /// TODO: allow the user to separate window contexts.
     pub fn init (width: i32, height: i32, title: []const u8) !Self {
         if (w.glfwInit() == w.GLFW_FALSE) return error.FuckGLFWBroken;

@@ -27,9 +27,9 @@ shaders/        GLSL shaders
 ## TODO
 
 - [ ] External model loading.
-- [ ] Controller support.
+- [*] Controller support.
 - [*] Vsync support.
-- [ ] Text rendering.
+- [*] Text rendering.
 - [ ] Default render pipeline.
 - [ ] Implement Sound groups.
 - [ ] Improve the SceneGraph implementation.
@@ -39,7 +39,7 @@ shaders/        GLSL shaders
 - [ ] Add more tests.
 - [ ] Support custom cursors.
 - [ ] Render buffer type selection.
-- [ ] Proper error handling for window creation.
+- [*] Proper error handling for window creation.
 - [ ] Safe user-pointer registration (Window.prepare)
 - [ ] Improve code quality.
 
