@@ -30,3 +30,6 @@ pub const InputMapper = @import("input.zig").InputMapper;
 pub const InputAction = @import("input.zig").InputAction;
 pub const InputBinding = @import("input.zig").InputBinding;
 pub const InputState = @import("input.zig").InputState;
+
+pub const ServiceManager = @import("services.zig").ServiceManager;
+pub const Service = @import("services.zig").Service;

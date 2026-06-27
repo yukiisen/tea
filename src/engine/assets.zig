@@ -115,12 +115,14 @@ pub const ImageMeta = struct {
 /// TODO: implement loading cubemaps from a single file.
 pub const AssetManager = struct {
     const Self = @This();
+
+    const StringHashMap = std.hash_map.StringHashMapUnmanaged;
     
     io: std.Io,
     gpa: std.mem.Allocator,
 
-    textures: std.StringHashMap(Texture2D),
-    cubes: std.StringHashMap(CubeTexture),
+    textures: StringHashMap(Texture2D),
+    cubes: StringHashMap(CubeTexture),
 
     pub fn init(allocator: std.mem.Allocator, io: std.Io) Self {
         if (!zstbi.isInitialized()) zstbi.init(allocator) catch unreachable;
@@ -129,8 +131,8 @@ pub const AssetManager = struct {
         return .{
             .gpa = allocator,
             .io = io,
-            .textures = .init(allocator),
-            .cubes = .init(allocator),
+            .textures = .empty,
+            .cubes = .empty,
         };
     }
 
@@ -145,7 +147,7 @@ pub const AssetManager = struct {
         defer image.deinit();
 
         const tex = try Texture2D.init(image, pixelated);
-        try self.textures.put(label, tex);
+        try self.textures.put(self.gpa, label, tex);
     }
 
     /// load a cube map from `files` as its faces.
@@ -168,7 +170,7 @@ pub const AssetManager = struct {
         for (images) |*img| img.deinit();
         loaded = 0;
 
-        try self.cubes.put(label, cube_texture);
+        try self.cubes.put(self.gpa, label, cube_texture);
     }
 
     /// loads a cube map from a single image as all faces
@@ -183,18 +185,20 @@ pub const AssetManager = struct {
         const images = [_]Image{ image } ** 6;
 
         const cube_texture = CubeTexture.init(images);
-        try self.cubes.put(label, cube_texture);
+        try self.cubes.put(self.gpa, label, cube_texture);
     }
 
     pub fn deinit(self: *Self) void {
         var textures = self.textures.valueIterator();
-        while (textures.next()) |texture| texture.deinit();
+        while (textures.next()) |texture| {
+            texture.deinit();
+        }
 
         var cubes = self.cubes.valueIterator();
         while (cubes.next()) |cube| cube.deinit();
         
-        self.textures.deinit();
-        self.cubes.deinit();
+        self.textures.deinit(self.gpa);
+        self.cubes.deinit(self.gpa);
 
         zstbi.deinit(); // ummmmmm
     }

@@ -16,6 +16,8 @@ const Pipeline = @import("pipeline.zig").Pipeline;
 const InputMapper = @import("input.zig").InputMapper;
 const Camera = @import("camera.zig").Camera;
 
+const ServiceManager = @import("services.zig").ServiceManager;
+
 const Type = std.builtin.Type;
 
 /// Type-erased scene wrapping any struct with optional load/exit/update/render/deinit.
@@ -24,25 +26,25 @@ pub const Scene = struct {
     const Self = @This();
 
     ptr: *anyopaque,
-    render_children: bool,
+    draw_children: bool,
 
     loadFn: *const fn(ptr: *anyopaque) anyerror!void,
     exitFn: *const fn (ptr: *anyopaque) void,
-    updateFn: *const fn (ptr: *anyopaque, dt: f64, ctx: *GameContext) anyerror!void,
-    renderFn: *const fn (ptr: *anyopaque, frame: *Frame) anyerror!void,
+    updateFn: *const fn (ptr: *anyopaque, dt: f32, ctx: *GameContext) anyerror!void,
+    drawFn: *const fn (ptr: *anyopaque, frame: *Frame) anyerror!void,
     deinitFn: *const fn (ptr: *anyopaque) void,
 
-    injectDeps: *const fn(ptr: *anyopaque, deps: *const GameDeps) void,
+    injectDependencies: *const fn(ptr: *anyopaque, services: *const ServiceManager) void,
 
     /// Convert a concrete pointer to a type-erased Scene.
     pub fn wrap(ptr: anytype) Self {
         const scene = std.meta.Child(@TypeOf(ptr));
 
-        const render_children: bool = if (@hasDecl(scene, "render_children")) scene.render_children else false;
+        const draw_children: bool = if (@hasDecl(scene, "draw_children")) scene.draw_children else false;
 
         return .{
             .ptr = @ptrCast(ptr),
-            .render_children = render_children,
+            .draw_children = draw_children,
             .loadFn = struct {
                 fn f(p: *anyopaque) anyerror!void { 
                     if (@hasDecl(scene, "load")) return @call(.auto, scene.load, .{ @as(*scene, @ptrCast(@alignCast(p))) }); 
@@ -54,13 +56,13 @@ pub const Scene = struct {
                 }
             }.f,
             .updateFn = struct {
-                fn f(p: *anyopaque, dt: f64, ctx: *GameContext) anyerror!void { 
+                fn f(p: *anyopaque, dt: f32, ctx: *GameContext) anyerror!void { 
                     if (@hasDecl(scene, "update")) return @call(.auto, scene.update, .{ @as(*scene, @ptrCast(@alignCast(p))), dt, ctx }); 
                 }
             }.f,
-            .renderFn = struct {
+            .drawFn = struct {
                 fn f(p: *anyopaque, frame: *Frame) anyerror!void { 
-                    if (@hasDecl(scene, "render")) return @call(.auto, scene.render, .{ @as(*scene, @ptrCast(@alignCast(p))), frame }); 
+                    if (@hasDecl(scene, "draw")) return @call(.auto, scene.draw, .{ @as(*scene, @ptrCast(@alignCast(p))), frame }); 
                 }
             }.f,
             .deinitFn = struct {
@@ -68,10 +70,10 @@ pub const Scene = struct {
                     if (@hasDecl(scene, "deinit")) return @call(.auto, scene.deinit, .{ @as(*scene, @ptrCast(@alignCast(p))) }); 
                 }
             }.f,
-            .injectDeps = struct {
+            .injectDependencies = struct {
                 const dest_field: []const u8 = "resolved";
 
-                fn f(p: *anyopaque, deps: *const GameDeps) void {
+                fn f(p: *anyopaque, services: *const ServiceManager) void {
                     if (!@hasField(scene, dest_field)) return;
                     const T = @FieldType(scene, dest_field);
                     if (@typeInfo(T) != .@"struct") return;
@@ -79,24 +81,12 @@ pub const Scene = struct {
                     const fields: []const Type.StructField = std.meta.fields(T);
                     const instance: *scene = @ptrCast(@alignCast(p));
 
-                    const depFields: []const Type.StructField = std.meta.fields(GameDeps);
-
                     inline for (fields) |field| {
                         if (@typeInfo(field.type) != .pointer) continue;
+                        const C = std.meta.Child(field.type);
 
-                        inline for (depFields) |dep| {
-                            const dep_t = 
-                                if (@typeInfo(dep.type) == .pointer) std.meta.Child(dep.type) 
-                                else dep.type;
-
-                            const dep_v: *dep_t = 
-                                if (@typeInfo(dep.type) == .pointer) @field(deps, dep.name) 
-                                else &@field(deps, dep.name);
-
-                            if (field.type == *dep_t) { 
-                                @field(@field(instance, dest_field), field.name) = dep_v;
-                                break;
-                            }
+                        if (services.get(C)) |service| {
+                            @field(@field(instance, dest_field), field.name) = service;
                         }
                     }
                 }
@@ -109,12 +99,12 @@ pub const Scene = struct {
         return self.exitFn(self.ptr);
     }
 
-    pub fn update(self: *const Self, dt: f64, ctx: *GameContext) !void {
+    pub fn update(self: *const Self, dt: f32, ctx: *GameContext) !void {
         return self.updateFn(self.ptr, dt, ctx);
     }
 
-    pub fn render(self: *const Self, frame: *Frame) !void {
-        return self.renderFn(self.ptr, frame);
+    pub fn draw(self: *const Self, frame: *Frame) !void {
+        return self.drawFn(self.ptr, frame);
     }
 
     pub fn deinit(self: *const Self) void {
@@ -122,8 +112,8 @@ pub const Scene = struct {
     }
 
     /// Injects all required dependencies and calls the scene's .load() function.
-    pub fn load(self: *const Self, deps: *const GameDeps) !void {
-        self.injectDeps(self.ptr, deps);
+    pub fn load(self: *const Self, services: *const ServiceManager) !void {
+        self.injectDependencies(self.ptr, services);
         return try self.loadFn(self.ptr);
     }
 };
@@ -135,18 +125,19 @@ pub const SceneManager = struct {
 
     gpa: std.mem.Allocator,
     scenes: std.ArrayList(Scene),
-    deps: *GameDeps = undefined,
+    _services: *const ServiceManager,
 
-    pub fn init(allocator: std.mem.Allocator) Self {
+    pub fn init(allocator: std.mem.Allocator, services: *const ServiceManager) Self {
         return .{
             .gpa = allocator,
             .scenes = .empty,
+            ._services = services,
         };
     }
 
     pub fn deinit(self: *Self) void {
         for (self.scenes.items) |scene| {
-            scene.deinit(self.gpa);
+            scene.deinit();
         }
         self.scenes.deinit(self.gpa);
     }
@@ -158,7 +149,7 @@ pub const SceneManager = struct {
         }
 
         try self.scenes.append(self.gpa, scene);
-        try scene.load(self.deps);
+        try scene.load(self._services);
     }
 
     /// Pop the current scene. Goes back to the previous one (if any).
@@ -172,26 +163,16 @@ pub const SceneManager = struct {
         scene.deinit(self.gpa);
     }
 
-    pub fn update(self: *const Self, dt: f64, ctx: *GameContext) !void {
+    pub fn update(self: *const Self, dt: f32, ctx: *GameContext) !void {
         const scene = self.scenes.getLastOrNull() orelse return;
         try scene.update(dt, ctx);
     }
 
-    // TODO: render all scenes instead of the top one.
-    pub fn render(self: *const Self, frame: *Frame) !void {
+    // TODO: draw all scenes instead of only the top one.
+    pub fn draw(self: *const Self, frame: *Frame) !void {
         const scene = self.scenes.getLastOrNull() orelse return;
-        try scene.render(frame);
+        try scene.draw(frame);
     }
-};
-
-pub const GameDeps = struct {
-    window: *Window,
-    assetManager: AssetManager,
-    shaderManager: ShaderManager,
-    audio: Audio,
-    mouse: Mouse,
-    keyBoard: KeyBoard,
-    clipboard: Clipboard,
 };
 
 pub const GameContext = struct {
@@ -225,72 +206,46 @@ pub const GameLoop = struct {
     
     scene_mgr: SceneManager,
     pipeline: Pipeline,
-
-    target_fps: f64,
-    target_dt: f64,
-    accumulator: f64,
+    services: *ServiceManager,
 
     ctx: GameContext,
-    deps: GameDeps,
 
-    pub fn init(gpa: std.mem.Allocator, io: std.Io, pipeline: Pipeline) !Self {
+
+    pub fn init(gpa: std.mem.Allocator, services: *ServiceManager, pipeline: Pipeline) Self {
         return .{
             .gpa = gpa,
             .clock = pipeline.ctx.clock,
             .window = pipeline.ctx.window,
-            .scene_mgr = .init(gpa),
+            .scene_mgr = .init(gpa, services),
+            .services = services,
             .pipeline = pipeline,
-            .target_fps = 60.0,
-            .target_dt = 1.0 / 60.0,
-            .accumulator = 0.0,
             .ctx = .{},
-            .deps = .{
-                .window = pipeline.ctx.window,
-                .assetManager = .init(gpa),
-                .audio = try .init(gpa),
-                .shaderManager = .init(gpa, io),
-                .mouse = .init(pipeline.ctx.window),
-                .keyBoard = .init(pipeline.ctx.window),
-                .clipboard = .init(pipeline.ctx.window),
-            }
         };
     }
 
-    pub fn deinit(self: *Self) void {
-        self.scene_mgr.deinit();
-        self.deps.assetManager.deinit();
-        self.deps.shaderManager.deinit();
-        self.deps.audio.deinit();
-    }
-
-    pub fn setTargetFps(self: *Self, fps: f64) void {
-        self.target_fps = fps;
-        self.target_dt = 1.0 / fps;
-    }
-
     /// Main loop: tick clock, update at fixed dt, render with frame + pipeline.
-    pub fn run(self: *Self) void {
+    pub fn run(self: *Self) !void {
         self.ctx._parent = self;
-        self.scene_mgr.deps = &self.deps;
+        self.scene_mgr._services = self.services;
 
         var frame = Frame.init(self.gpa);
         defer frame.deinit();
 
         while (!self.window.shouldClose()) {
             self.clock.tick();
-            self.deps.mouse.updatePos();
+            if (self.services.get(Mouse)) |mouse| mouse.updatePos();
 
-            self.accumulator += self.clock.dt();
-
-            while (self.accumulator >= self.target_dt) {
-                self.scene_mgr.update(self.target_dt, self.ctx);
-                self.accumulator -= self.target_dt;
-            }
+            try self.scene_mgr.update(self.clock.dt(), &self.ctx);
 
             frame.clear();
 
-            self.scene_mgr.render(&frame);
-            self.pipeline.execute(&frame);
+            try self.scene_mgr.draw(&frame);
+            try self.pipeline.render(&frame);
+            self.window.swapBuffers();
         }
+    }
+
+    pub fn deinit(self: *Self) void {
+        self.scene_mgr.deinit();
     }
 };
