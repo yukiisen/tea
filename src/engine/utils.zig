@@ -14,3 +14,17 @@ pub fn glError(err: gl.Enum) !void {
         else => {} 
     };
 }
+
+
+pub inline fn loadFile(allocator: std.mem.Allocator, io: std.Io, path: []const u8) ![]const u8 {
+    const file = try std.Io.Dir.cwd().openFile(io, path, .{ .mode = .read_only });
+    defer file.close(io);
+
+    const stat = try file.stat(io);
+    const buf = try allocator.alloc(u8, stat.size);
+    errdefer allocator.free(buf);
+
+    _ = try file.readPositionalAll(io, buf, 0); // this should return fragstat.size but I won't check it right now.
+
+    return buf;
+}

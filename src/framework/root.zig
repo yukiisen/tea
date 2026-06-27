@@ -14,8 +14,8 @@ pub const Component = @import("ecs.zig").Component;
 pub const ComponentId = @import("ecs.zig").ComponentType;
 pub const EntityId = @import("ecs.zig").EntityId;
 
-pub const RenderPipeline = @import("pipeline.zig").RenderPipeline;
 pub const Pipeline = @import("pipeline.zig").Pipeline;
+pub const DefaultPipeline = @import("pipeline.zig").DefaultPipeline;
 pub const RenderContext = @import("pipeline.zig").RenderContext;
 
 pub const Model = @import("model.zig");

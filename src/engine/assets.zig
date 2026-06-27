@@ -4,6 +4,7 @@ const gl = @import("zopengl").bindings;
 const zstbi = @import("zstbi");
 
 const glError = @import("utils.zig").glError;
+const loadFile = @import("utils.zig").loadFile;
 
 const Image = zstbi.Image;
 
@@ -115,14 +116,19 @@ pub const ImageMeta = struct {
 pub const AssetManager = struct {
     const Self = @This();
     
+    io: std.Io,
+    gpa: std.mem.Allocator,
+
     textures: std.StringHashMap(Texture2D),
     cubes: std.StringHashMap(CubeTexture),
 
-    pub fn init(allocator: std.mem.Allocator) Self {
+    pub fn init(allocator: std.mem.Allocator, io: std.Io) Self {
         if (!zstbi.isInitialized()) zstbi.init(allocator) catch unreachable;
         zstbi.setFlipVerticallyOnLoad(true);
 
         return .{
+            .gpa = allocator,
+            .io = io,
             .textures = .init(allocator),
             .cubes = .init(allocator),
         };
@@ -132,7 +138,10 @@ pub const AssetManager = struct {
     /// Textures created using this method are automatically freed using the `deinit` method of this instance.
     pub fn loadTexture(self: *Self, label: []const u8, path: []const u8, pixelated: bool) !void {
         // image loading stuff.
-        var image = try zstbi.Image.loadFromFile(path, 4);
+        const buffer = try loadFile(self.gpa, self.io, path);
+        defer self.gpa.free(buffer);
+
+        var image = try Image.loadFromMemory(buffer, 4);
         defer image.deinit();
 
         const tex = try Texture2D.init(image, pixelated);
@@ -147,7 +156,10 @@ pub const AssetManager = struct {
         errdefer for (images[0..loaded]) |*img| img.deinit();
 
         for (files, 0..) |path, i| {
-            images[i] = try Image.loadFromFile(path, 4);
+            const buffer = try loadFile(self.gpa, self.io, path);
+            defer self.gpa.free(buffer);
+
+            images[i] = try Image.loadFromMemory(buffer, 4);
             loaded = i + 1;
         }
 
@@ -162,8 +174,12 @@ pub const AssetManager = struct {
     /// loads a cube map from a single image as all faces
     /// Textures created using this method are automatically freed using the `deinit` method of this instance.
     pub fn loadCubeRepeat(self: *Self, label: []const u8, path: []const u8) !void {
-        var image = try Image.loadFromFile(path, 4);
+        const buffer = try loadFile(self.gpa, self.io, path);
+        defer self.gpa.free(buffer);
+
+        var image = try Image.loadFromMemory(buffer, 4);
         defer image.deinit();
+
         const images = [_]Image{ image } ** 6;
 
         const cube_texture = CubeTexture.init(images);

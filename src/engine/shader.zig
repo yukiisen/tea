@@ -3,6 +3,8 @@ const std = @import("std");
 const gl = @import("zopengl").bindings;
 const z = @import("zmath");
 
+const loadFile = @import("utils.zig").loadFile;
+
 /// Compiles and Holds Shader data.
 pub const Shader = struct {
     const Self = @This();
@@ -76,19 +78,6 @@ pub const Shader = struct {
         };
     }
 
-    inline fn loadFile(allocator: std.mem.Allocator, io: std.Io, path: []const u8) ![]const u8 {
-        const file = try std.Io.Dir.cwd().openFile(io, path, .{ .mode = .read_only });
-        defer file.close(io);
-
-        const stat = try file.stat(io);
-        const buf = try allocator.alloc(u8, stat.size);
-        errdefer allocator.free(buf);
-
-        _ = try file.readPositionalAll(io, buf, 0); // this should return fragstat.size but I won't check it right now.
-
-        return buf;
-    }
-
     inline fn compileShader (shadertype: u32, source: []const u8) !u32 {
         var info: [512]u8 = undefined;
         var success: i32 = 0;
@@ -157,7 +146,7 @@ pub const Shader = struct {
                         inline 4 => gl.uniform4fv(location, 1, z.arrNPtr(&uniform)),
                         inline else => @compileError("fouck 2"),
                     },
-                    inline else => return error.UnsupportedVectorType
+                    inline else => @compileError("Unsupported Vector Type: " ++ @typeName(@TypeOf(uniform)))
                 }
             },
             inline .@"struct" => |s| {
@@ -174,7 +163,7 @@ pub const Shader = struct {
                         inline 2 => gl.uniformMatrix2fv(location, 1, 0, z.arrNPtr(&uniform)),
                         inline 3 => gl.uniformMatrix3fv(location, 1, 0, z.arrNPtr(&uniform)),
                         inline 4 => gl.uniformMatrix4fv(location, 1, 0, z.arrNPtr(&uniform)),
-                        inline else => @compileError("fouck 2"),
+                        inline else => @compileError("Unsupported Matrix Type: " ++ @typeName(@typeName(uniform))),
                     }
                 } else {
                     for (0..a.len) |i| {
@@ -184,7 +173,7 @@ pub const Shader = struct {
                     }
                 }
             },
-            inline else => return error.UnsupportedType
+            inline else => @compileError("Unsupported Uniform Type: " ++ @typeName(@TypeOf(uniform)))
         }
     }
 
@@ -248,7 +237,7 @@ pub const ShaderManager = struct {
 
     /// Create a shader programs using files specified by `config` and uniform data of type `T`.
     /// The shader can be queried using the specified label.
-    pub fn createTagged (self: *Self, T: type, label: []const u8, config: ShaderConfig) !Shader {
+    pub fn createTagged(self: *Self, T: type, label: []const u8, config: ShaderConfig) !Shader {
         const shader = try self.create(T, config);
         try self.tags.put(label, self.shaders.items.len - 1);
 

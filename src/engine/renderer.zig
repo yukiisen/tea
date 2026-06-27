@@ -19,8 +19,8 @@ pub const Window = struct {
     window: *w.GLFWwindow,
     mode: WindowMode = .Windowed,
     vsync: bool = true,
-    width: i32,
-    height: i32,
+    width: f32,
+    height: f32,
 
     /// creates a GLFW window with the specified attributes.
     /// Additional windows will share the same resources with the first created window.
@@ -43,8 +43,8 @@ pub const Window = struct {
 
         return .{
             .window = window,
-            .width = width,
-            .height = height
+            .width = @floatFromInt(width),
+            .height = @floatFromInt(height) 
         };
     }
 
@@ -61,8 +61,8 @@ pub const Window = struct {
         const s: ?*Self = @ptrCast(@alignCast(w.glfwGetWindowUserPointer(window))); 
         // don't crash if prepare was not called
         if (s) |self| { 
-            self.*.width = width;
-            self.*.height = height;
+            self.*.width = @floatFromInt(width);
+            self.*.height = @floatFromInt(height);
         }
         gl.viewport(0, 0, width, height);
     }
@@ -98,8 +98,8 @@ pub const Window = struct {
             .Borderless => {
                 const video_mode = w.glfwGetVideoMode(monitor).?.*; // use monitor dimentions
                 w.glfwSetWindowMonitor(self.window, monitor, 0, 0, video_mode.width, video_mode.height, video_mode.refreshRate);
-                self.width = video_mode.width;
-                self.height = video_mode.height;
+                self.width = @floatFromInt(video_mode.width);
+                self.height = @floatFromInt(video_mode.height);
             },
             .FullScreen => w.glfwSetWindowMonitor(self.window, monitor, 0, 0, width, height, 60), // make monitor follow window
         }
@@ -111,7 +111,7 @@ pub const Window = struct {
         w.glfwSetWindowTitle(self.window, title.ptr);
     }
 
-    pub fn getSize (self: Self) @Tuple(&.{ i32, i32 }) {
+    pub fn getSize (self: Self) struct { i32, i32 } {
         var width: i32 = 0;
         var height: i32 = 0;
         w.glfwGetFramebufferSize(self.window, &width, &height);
@@ -195,8 +195,8 @@ pub const Renderer = struct {
         gl.clear(@intCast(mask));
     }
 
-    pub fn drawMesh(self: Self, mesh: *const Mesh, shader: *const Shader, mode: DrawMode) void {
-        self.useShader(shader);
+    pub fn drawMesh(self: Self, mesh: Mesh, shader: Shader, mode: DrawMode) void {
+        self.useShader(&shader);
         mesh.bind();
 
         if (mesh.indexed) gl.drawElements(@intFromEnum(mode), mesh.count, gl.UNSIGNED_INT, null)
@@ -209,7 +209,7 @@ pub const Renderer = struct {
         const depth = RenderBuffer.init(size[0], size[1]);
         errdefer depth.deinit();
 
-        const color = Texture2D.init(.{ 
+        const color = try Texture2D.init(.{ 
             .data = @as([*c]u8, null),
             .width = size[0], 
             .height = size[1], 

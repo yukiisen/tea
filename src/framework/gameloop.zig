@@ -69,9 +69,11 @@ pub const Scene = struct {
                 }
             }.f,
             .injectDeps = struct {
+                const dest_field: []const u8 = "resolved";
+
                 fn f(p: *anyopaque, deps: *const GameDeps) void {
-                    if (!@hasField(scene, "deps")) return;
-                    const T = @FieldType(scene, "deps");
+                    if (!@hasField(scene, dest_field)) return;
+                    const T = @FieldType(scene, dest_field);
                     if (@typeInfo(T) != .@"struct") return;
 
                     const fields: []const Type.StructField = std.meta.fields(T);
@@ -92,7 +94,7 @@ pub const Scene = struct {
                                 else &@field(deps, dep.name);
 
                             if (field.type == *dep_t) { 
-                                @field(instance.deps, field.name) = dep_v;
+                                @field(@field(instance, dest_field), field.name) = dep_v;
                                 break;
                             }
                         }

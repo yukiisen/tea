@@ -28,7 +28,7 @@ pub const Camera = struct {
 
     pub fn init2D(window: *Window, pos: Vec) Self {
         var cam: Self = .{
-            .bounds = .{ @as(f32, @floatFromInt(window.width)), @as(f32, @floatFromInt(window.height)), 0.1, 100 },
+            .bounds = .{ window.width, window.height, 0.1, 100 },
             .position = pos.value,
             .direction = z.Vec{ 0, 0, -1, 0 },
             .up = z.Vec{ 0, 1, 0, 0 },
@@ -43,7 +43,7 @@ pub const Camera = struct {
 
     pub fn init3D(window: *Window, pos: Vec) Self {
         var cam: Self = .{
-            .bounds = .{ @as(f32, @floatFromInt(window.width)), @as(f32, @floatFromInt(window.height)), 0.1, 100 },
+            .bounds = .{ window.width, window.height, 0.1, 100 },
             .position = pos.value,
             .direction = z.Vec{ 0, 0, -1, 0 },
             .up = z.Vec{ 0, 1, 0, 0 },
@@ -54,6 +54,12 @@ pub const Camera = struct {
         cam.calculateMatrices();
 
         return cam;
+    }
+
+    pub fn setBounds(self: *Self, window: *const Window) void {
+        self.bounds[0] = window.width;
+        self.bounds[1] = window.height;
+        self.calculateMatrices();
     }
 
     pub fn calculateMatrices(self: *Self) void {

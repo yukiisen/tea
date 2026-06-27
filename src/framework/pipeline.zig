@@ -17,144 +17,106 @@ pub const RenderContext = struct {
     window: *Window,
     renderer: *Renderer,
     clock: *Clock,
-    camera: *Camera,
+    camera: *const Camera,
 };
 
-/// Type-erased pipeline: wraps any concrete RenderPipeline(T) for storage in GameLoop.
+/// Type-erased pipeline.
 pub const Pipeline = struct {
     const Self = @This();
 
     ptr: *anyopaque,
     ctx: RenderContext,
-    execFn: *const fn(*anyopaque, *const Frame, RenderContext) anyerror!void,
-    deinitFn: *const fn(*anyopaque) void,
+    renderFn: *const fn(*anyopaque, *const Frame, RenderContext) anyerror!void,
+    deinitFn: *const fn(*anyopaque, std.mem.Allocator) void,
 
-    pub fn deinit(self: Self) void {
-        self.deinitFn(self.ptr);
-    }
+    pub fn init(ptr: anytype, ctx: RenderContext) Self {
+        const child = std.meta.Child(@TypeOf(ptr));
 
-    pub fn execute(self: Self, frame: *const Frame) !void {
-        try self.execFn(self.ptr, frame, self.ctx);
-    }
+        if (!@hasDecl(child, "render")) @compileError("Type " ++ @typeName(child) ++ " doesn't have a .render() method.");
 
-    pub fn singular(ctx: RenderContext, handler: *const fn(RenderContext, *const Frame) anyerror!void) Self {
         return .{
-            .ptr = undefined,
+            .ptr = @ptrCast(@alignCast(ptr)),
             .ctx = ctx,
-            .execFn = struct {
-                fn f(_: *anyopaque, frame: *const Frame, r_ctx: RenderContext) anyerror!void {
-                    return handler(r_ctx, frame);
+            .renderFn = struct {
+                fn f(p: *anyopaque, frame: *const Frame, renderCtx: RenderContext) anyerror!void {
+                    if (@hasDecl(child, "clear")) renderCtx.renderer.clearFrame(child.clear.value);
+                    return @call(.auto, child.render, .{ @as(*child, @ptrCast(@alignCast(p))), frame, renderCtx });
                 }
             }.f,
-            .deinitFn = struct { fn d(_: *anyopaque) void {} }.d,
+            .deinitFn = struct {
+                fn f(p: *anyopaque, gpa: std.mem.Allocator) void {
+                    const instance: *child = @ptrCast(@alignCast(p));
+                    if (@hasDecl(child, "deinit")) instance.deinit();
+                    gpa.destroy(instance);
+                }
+            }.f,
         };
+    }
+
+    pub fn deinit(self: Self, gpa: std.mem.Allocator) void {
+        self.deinitFn(self.ptr, gpa);
+    }
+
+    pub fn render(self: Self, frame: *const Frame) !void {
+        try self.renderFn(self.ptr, frame, self.ctx);
     }
 };
 
-/// Generic render pipeline with latered passes and a user-defined context T.
-/// Call pipeline() to obtain a type-erased Pipeline for the game loop.
-pub fn RenderPipeline(comptime T: type) type {
-    return struct {
-        const Self = @This();
+pub const DefaultPipeline = struct {
+    const Self = @This();
 
-        const RenderFn = *const fn (*T, *const Frame, RenderContext) anyerror!void;
+    const clear: Vec = .vec(0);
 
-        pub const RenderPass = struct {
-            exec: RenderFn,
-            framebuffer: ?FrameBuffer = null,
-            camera: ?Camera = null,
-            clear: ?Vec = null,
-        };
-
-        pub const PassBuilder = struct {
-            pass: RenderPass,
-
-            pub fn from(handler: RenderFn) @This() {
-                return .{ 
-                    .pass = .{ .exec = handler }
-                };
-            }
-
-            pub fn camera(self: *@This(), cam: Camera) *@This() {
-                self.pass.camera = cam;
-                return self;
-            }
-
-            pub fn clear(self: *@This(), color: Vec) *@This() {
-                self.pass.clear = color;
-                return self;
-            }
-
-            pub fn framebuffer(self: *@This(), fb: FrameBuffer) *@This() {
-                self.pass.framebuffer = fb;
-                return self;
-            }
-
-            pub fn build(self: @This()) RenderPass {
-                return self.pass;
-            }
-        };
-
-        allocator: std.mem.Allocator,
-        passes: std.ArrayList(RenderPass),
-        renderCtx: RenderContext,
-        userCtx: *T,
-
-        pub fn init(gpa: std.mem.Allocator, ctx: RenderContext) !Self {
-            const userCtx = try gpa.create(T);
-
-            return .{
-                .allocator = gpa,
-                .passes = .empty,
-                .renderCtx = ctx,
-                .userCtx = userCtx,
-            };
-        }
-
-        pub fn addRenderPass(self: *Self, pass: PassBuilder) !void {
-            try self.passes.append(self.allocator, pass.build());
-        }
-
-        pub fn deinit(self: Self) void {
-            self.passes.deinit(self.allocator);
-            self.allocator.destroy(self.userCtx);
-        }
-
-        pub fn execute(self: Self, f: *const Frame, ctx: RenderContext) !void {
-            for (self.passes.items) |pass| {
-                if (pass.framebuffer) |fb| fb.bind();
-                if (pass.clear) |color| ctx.renderer.clearFrame(color.value);
-
-                var backupCamera: ?*Camera = null;
-                if (pass.camera) {
-                    backupCamera = ctx.camera;
-                    ctx.camera = &pass.camera;
-                }
-
-                try pass.exec(ctx, f, self.userCtx);
-
-                if (backupCamera) |cam| ctx.camera = cam;
-            }
-        }
-
-        /// Erases type so it can be stored as Pipeline.
-        pub fn pipeline(self: *Self) Pipeline {
-            return .{
-                .ptr = self,
-                .ctx = self.renderCtx,
-                .execFn = struct {
-                    pub fn f(ptr: *anyopaque, frame: *const Frame, ctx: RenderContext) !void {
-                        const instance: *Self = @ptrCast(@alignCast(ptr));
-                        instance.execute(frame, ctx);
-                    }
-                }.f,
-                .deinitFn = struct {
-                    pub fn f(ptr: *anyopaque) void {
-                        const instance: *Self = @ptrCast(@alignCast(ptr));
-                        instance.deinit();
-                    }
-                }.f,
-            };
-        }
+    pub const TextUniform = struct {
+        u_model: zm.Mat,
+        u_view: zm.Mat,
+        u_proj: zm.Mat,
+        u_pxRange: f32,
+        u_atlas: i32,
+        u_color: zm.Vec,
     };
-}
+
+    quad: engine.Mesh,
+    shader_mgr: *engine.ShaderManager,
+
+    pub fn render(self: *Self, frame: *const Frame, ctx: RenderContext) !void {
+        for (frame.sprites.items) |sprite| {
+            const shader = self.shader_mgr.get("general").?;
+
+            ctx.renderer.useShader(&shader);
+            sprite.texture.bind(0);
+
+            try shader.setUniform("u_texture", 0);
+            try shader.setUniform("u_proj", ctx.camera.proj);
+            try shader.setUniform("u_view", ctx.camera.view);
+            try shader.setUniform("u_model", 
+                zm.mul(
+                    zm.scalingV(sprite.size.value), 
+                    zm.translationV(sprite.position.value + zm.f32x4(0, 0, @floatFromInt(sprite.layer), 0))
+                )
+            );
+
+            ctx.renderer.drawMesh(self.quad, shader, .Triangles);
+        }
+
+        for (frame.text.items) |pair| {
+            const text , const model = pair;
+            const shader = self.shader_mgr.get("text").?;
+
+            ctx.renderer.useShader(&shader);
+            text.font.texture.bind(0);
+
+            const uniforms = shader.uniformPtr(TextUniform);
+            uniforms.u_atlas = 0;
+            uniforms.u_color = text.getColor();
+            uniforms.u_pxRange = 2.0;
+            uniforms.u_model = zm.mul(zm.translation(-ctx.window.width / 2, -(ctx.window.height / 2), 0), model);
+            uniforms.u_view = ctx.camera.view;
+            uniforms.u_proj = ctx.camera.proj;
+
+            try shader.updateUniforms(TextUniform);
+
+            ctx.renderer.drawMesh(text.asMesh(), shader, .Triangles);
+        }
+    }
+};

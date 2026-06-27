@@ -260,8 +260,8 @@ pub const Clock = struct {
     }
 
     /// DeltaTime
-    pub fn dt(self: Self) f64 {
-        return self.delta_time;
+    pub fn dt(self: Self) f32 {
+        return @floatCast(self.delta_time);
     }
 
     /// updates the clock with a new delta time data.

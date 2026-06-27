@@ -183,11 +183,13 @@ pub const Text2D = struct {
     vbo: u32,
     ebo: u32,
 
-    content: []u8,
-    font: *FontAtlas,
-
+    content: []u8 = &.{},
+    width: f32 = 0,
+    height: f32 = 0,
     /// Hexadecimal text color.
     color: u32 = 0x00000000,
+
+    font: *FontAtlas,
 
     /// TODO: handle different charsets
     pub fn init(gpa: std.mem.Allocator, font: *FontAtlas) !Self {
@@ -233,7 +235,6 @@ pub const Text2D = struct {
             .vbo = VBO,
             .vao = VAO,
             .ebo = EBO,
-            .content = &.{},
             .font = font,
         };
     }
@@ -273,6 +274,8 @@ pub const Text2D = struct {
                 const r = cursor.x + planeBounds.right  * self.font.metrics.em_size;
                 const t = cursor.y + planeBounds.top    * self.font.metrics.em_size;
 
+                self.height = @max(t - b, self.height);
+
                 const width = @as(f32, @floatFromInt(self.font.texture.meta.width));
                 const height = @as(f32, @floatFromInt(self.font.texture.meta.height));
 
@@ -290,6 +293,8 @@ pub const Text2D = struct {
             cursor.x += glyph.advance * self.font.metrics.em_size;
             if (i+1 < text.len) cursor.x += self.font.getKerning(char, text[i+1]);
         }
+
+        self.width = cursor.x;
 
 
         gl.bindVertexArray(self.vao);

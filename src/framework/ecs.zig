@@ -1,7 +1,5 @@
 const std = @import("std");
 
-const Pair = @import("utils.zig").Pair;
-
 pub const EntityId = u32;
 pub const ComponentType = u64;
 
@@ -32,7 +30,7 @@ pub const SceneGraph = struct {
     next_id: EntityId,
     root_entities: std.ArrayList(EntityId),
 
-    loop_cache: std.ArrayList(Pair(EntityId, *Entity)),
+    loop_cache: std.ArrayList(*Entity),
 
     pub fn init(allocator: std.mem.Allocator) Self {
         return .{
@@ -196,13 +194,12 @@ pub const SceneGraph = struct {
         self.loop_cache.clearRetainingCapacity();
 
         for (self.root_entities.items) |id| {
-            try self.loop_cache.append(self.allocator, .{ id, self.getEntity(id).? });
+            try self.loop_cache.append(self.allocator, self.getEntity(id).?);
         }
 
         var i: usize = 0;
         while (self.loop_cache.items.len > i) : (i += 1) {
-            const entry = self.loop_cache.items[i];
-            const id: EntityId, const entity: *Entity = entry;
+            const entity = self.loop_cache.items[i];
             if (!entity.active) continue;
 
             if (matchEntity(entity, t_info.fields)) {
@@ -213,11 +210,11 @@ pub const SceneGraph = struct {
                     @field(components, field.name) = @ptrCast(@alignCast(entity.components.get(component).?.data));
                 }
 
-                try @call(.auto, callback, .{ ctx, id, components });
+                try @call(.auto, callback, .{ ctx, entity.id, components });
             }
 
             for (entity.children.items) |cid| {
-                try self.loop_cache.append(self.allocator, .{ cid, self.getEntity(cid).? });
+                try self.loop_cache.append(self.allocator, self.getEntity(cid).?);
             }
         }
     }
