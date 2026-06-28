@@ -30,7 +30,7 @@ shaders/        GLSL shaders
 - [*] Controller support.
 - [*] Vsync support.
 - [*] Text rendering.
-- [ ] Default render pipeline.
+- [*] Default render pipeline.
 - [ ] Implement Sound groups.
 - [ ] Improve the SceneGraph implementation.
 - [ ] Some 2D features (Animations, Collisions, Particles)

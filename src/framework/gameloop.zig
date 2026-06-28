@@ -160,7 +160,7 @@ pub const SceneManager = struct {
         var scene = self.scenes.orderedRemove(idx);
 
         scene.exit();
-        scene.deinit(self.gpa);
+        scene.deinit();
     }
 
     pub fn update(self: *const Self, dt: f32, ctx: *GameContext) !void {
