@@ -108,7 +108,7 @@ const Main = struct {
 
         try frame.drawText(self.text, .vec3((self.resolved.window.width - self.text.width) / 2, self.resolved.window.height - self.text.height * 3, 2));
 
-        const n = 1;
+        const n = 2000;
         const d: f32 = 1;
         const div: u32 = 2;
 

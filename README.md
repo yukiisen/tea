@@ -2,62 +2,21 @@
 
 A work-in-progress game engine and framework in Zig.
 
-## Quick start
-
-```bash
-zig build run
-```
-
-Opens a borderless window with sprite and MSDF text rendering.
+This project is still in early stages. The ECS(?) needs improvement, 2D features beyond sprites are missing, and model loading is unimplemented.
 
 ## Dependencies
 
 **System:**
 - [GLFW](https://www.glfw.org/) — windowing and input
 
-**Zig packages** (local paths in `build.zig.zon`):
+**Zig packages** (local paths in `build.zig.zon` change them accordingly):
 - [zmath](https://github.com/zig-gamedev/zmath) — SIMD linear algebra
-- [zopengl](https://github.com/ziglibs/zopengl) — OpenGL bindings (core 4.2)
-- [zstbi](https://github.com/ziglibs/zstbi) — image loading (PNG/JPG)
+- [zopengl](https://github.com/zig-gamedev/zopengl) — OpenGL bindings (core 4.2)
+- [zstbi](https://github.com/zig-gamedev/zstbi) — image loading (PNG/JPG)
 
 **Bundled:**
 - [stb_vorbis](https://github.com/nothings/stb) via [miniaudio.h](include/miniaudio.h) — audio playback
 
-## Project structure
-
-```
-src/
-├── main.zig                  Entry point (example 2D app)
-├── engine/                   Low-level GPU/audio/input abstractions
-│   ├── root.zig              Public re-exports
-│   ├── renderer.zig          Window (GLFW), Renderer (OpenGL), DrawMode
-│   ├── shader.zig            Shader compilation, uniform reflection, ShaderManager
-│   ├── mesh.zig              Mesh (VAO/VBO/EBO), Vertex, MeshConfig (quad/cube/circle)
-│   ├── assets.zig            Texture2D, CubeTexture, AssetManager
-│   ├── font.zig              FontAtlas (MSDF JSON), Text2D (dynamic text)
-│   ├── framebuffer.zig       FrameBuffer, RenderBuffer
-│   ├── uniformbuffer.zig     UBO (std140 comptime aligned)
-│   ├── input.zig             Mouse, Keyboard, Clock, Joystick, Gamepad, Clipboard
-│   ├── audio.zig             Audio (miniaudio engine), Sound, SoundConfig
-│   ├── utils.zig             glError helper, loadFile
-│   └── deps/                 C imports (glfw3.zig, miniaudio.zig)
-├── framework/                Higher-level opinionated game framework
-│   ├── root.zig              Public re-exports
-│   ├── gameloop.zig          Scene, SceneManager, GameLoop, GameContext
-│   ├── pipeline.zig          Pipeline (type-erased), DefaultPipeline, RenderContext
-│   ├── frame.zig             Frame (draw-call collector), Sprite, SpriteFlip
-│   ├── camera.zig            Camera (2D/3D), CameraProjection
-│   ├── ecs.zig               SceneGraph (hierarchical ECS)
-│   ├── services.zig          ServiceManager (type-erased DI container)
-│   ├── input.zig             InputMapper (named actions with edge detection)
-│   ├── model.zig             Model (multi-mesh container)
-│   └── utils.zig             Vec wrapper (.vec2/.vec3/.vec4 helpers)
-shaders/
-├── quad.vert.glsl            Sprite/quad vertex shader
-├── quad.frag.glsl            Sprite/quad fragment shader (textured)
-├── text.vert.glsl            MSDF text vertex shader
-└── text.frag.glsl            MSDF text fragment shader (multi-channel SDF)
-```
 
 ## Engine vs Framework
 
@@ -101,7 +60,7 @@ Scenes declare dependencies via a `resolved` struct — services are injected be
 
 ```zig
 const MyScene = struct {
-    resolved: struct { kb: *en.Keyboard, window: *en.Window } = .{},
+    resolved: struct { kb: *en.Keyboard, window: *en.Window } = undefined,
     // ...
     pub fn update(self: *Self, dt: f32, ctx: *fw.GameContext) !void {
         if (self.resolved.kb.isPressed(.Q)) ctx.quit();
